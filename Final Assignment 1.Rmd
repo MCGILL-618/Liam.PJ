@@ -8,7 +8,6 @@ output:
     theme: architect
     toc: true
     number_sections: true
-  
     
 ---
 ```{r setup}
@@ -80,7 +79,7 @@ kable(Q1)%>%kable_styling(bootstrap_options = c("striped", "hover", "condensed",
 ```{r message=FALSE, warning=FALSE}
 #Creating data set to answer question 1
 Question<-c("11", "12", "13", "14")
-Answer<-c("4.765431% Decrease", "4.111168% Decrease", "10.7142857143% Change", "3:2")
+Answer<-c("4.765431% Decrease", "4.111168% Decrease", "10.7142857143 Change%", "3:2")
 Q2<-cbind(Question, Answer)
 Q2<-data.frame(Q2)
 
