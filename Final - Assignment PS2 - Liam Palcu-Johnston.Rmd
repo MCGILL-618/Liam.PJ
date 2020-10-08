@@ -1,0 +1,478 @@
+---
+title: "Assignment Two: Problem Set"
+author: "Liam Palcu-Johnston"
+subtitle: "McGill University"
+date: "October 9, 2020"
+output:
+  prettydoc::html_pretty:
+    theme: tactile
+---
+```{r setup }
+#Loading necessary packages
+library(tidyverse); library(kableExtra); library(data.table);library(ggplot2);library(ggdark); library(prettydoc);library(datasets); library(kableExtra);library(Hmisc);library(pastecs);library(qwraps2);library(ggdark);library(ggpubr);library(numbers);library(car);library(tools);library(viridis);library(plotly)
+
+#Uploading datasets
+#Demo data set
+demo <- read.csv("~/Master's Political Science - Fall 2020/Political Science 618/Political Science 618 Assignments/Assignment 2/student_materials_2020-master/problem_sets/ps2/demo.csv")
+#Population data set
+population <- read.csv("~/Master's Political Science - Fall 2020/Political Science 618/Political Science 618 Assignments/Assignment 2/student_materials_2020-master/problem_sets/ps2/population.csv", sep="")
+#Deck data set
+deck <- data.frame(rep(2:14,4),c(rep(1,13), rep(2,13), rep(3,13), rep(4,13)))
+colnames(deck) <- c("number", "suit")
+```
+
+# **Question One**
+
+## 1A
+
+*E|5X - 2Y + 8|*
+
+*E|5X| + E|-2Y| + 8*
+
+*5E|X| - 2E|Y| + 8* 
+
+## 1B
+
+*V|2X + 4Y|*
+
+*V|2X| + V|4Y|*
+
+*4V|X| + 16V|Y| + (2)(2)(4)(COV[X, Y])* 
+
+*4V|X| + 16V|Y| + 16(COV[X, Y])*
+
+*4V|X| + 16V|Y|*
+
+## 1C
+
+*COV|5X, 4Y|*
+
+*20COV|X, Y|*
+
+
+# **Question Two**
+```{r }
+#2A
+#Finding the total possible combinations of jurors
+choose(100, 12)
+#2B  
+#Setting seed to make results repeatable 
+set.seed(1)
+#100 simulations of a binomial distribution where at least one juror believes in suspects innocence
+mean(rbinom(20, 12, .1)>=1)
+#2C
+set.seed(1)
+#Doing same type of simulation as before but doing it 1000 times instead of a 20
+mean(rbinom(1000, 12, .1)>=1)
+#2D 
+#Finding exact probability 
+pbinom(0, 12, .1, lower.tail=FALSE)
+#2E
+#Finding the probability that all jurors believe that the accused is innocent 
+dbinom(12, 12, .1)
+#Creating a table to display my results
+Question<-c("2A", "2B", "2C", "2D", "2E")
+Question<-data.frame(Question)
+Answer<-c("1050421000000000 Combinations", "80%", "71.7%", "71.8%", "0.000000000001%")
+Answer<-data.frame(Answer)
+Two<-cbind(Question,Answer)
+kable(Two)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  row_spec(1:5)%>%
+  kable_material_dark()%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:5, color="black")
+```
+
+The reason the probability decreased when I drew a jury a 1000 times versus 20 times is because of the law of large numbers. In other words, as the sample gets larger the results will more accurately reflect the true population parameters.
+
+
+# **Question Three**
+```{r }
+#Total deck combinations
+choose(52, 5)
+2598960
+#Calculate probability of a straight
+(10*4^5) + (-9*4-4)
+10200/2598960
+0.003924647
+#probability for flush
+choose(13, 5) * 4
+5148/2598960
+0.001980792
+
+#replicate sample for straight
+#Set seed
+set.seed(10)
+#Replicating sample
+straight<- replicate(100000, sample(deck$number, size = 5))
+#Sorting data frame in numeric order
+straight<-data.frame(apply(straight, 2, sort, decreasing=FALSE))
+#Making data.frame into data table to collapse 
+straight<-data.table(straight)
+#collapsing the columns 
+straight<-data.frame(straight[, lapply(.SD, paste0, collapse="-")])
+#Rotating row into a single column
+straight<-straight%>%t()
+straight<-data.frame(straight) 
+#Filtering only straight hands
+straight<-filter(straight, straight %in% c('2-3-4-5-6','3-4-5-6-7', '4-5-6-7-8',
+                                           '5-6-7-8-9', 
+                                           '6-7-8-9-10','7-8-9-10-11',
+                                           '8-9-10-11-12','9-10-11-12-13',
+                                           '10-11-12-13-14'))
+#Getting the total number of observations in the straight data set and dividing it by the total number of hands simulated
+347/100000
+
+#replicate sample for flush
+set.seed(10)
+suit<- replicate(100000, sample(deck$suit, size = 5))
+suit<-data.frame(apply(suit, 2, sort, decreasing=FALSE))
+suit<-data.table(suit)
+suit<-data.frame(suit[, lapply(.SD, paste0, collapse="-")])
+suit<-suit%>%t()
+suit<-data.frame(suit) 
+suit<-filter(suit, suit %in% c('1-1-1-1-1', '2-2-2-2-2', '3-3-3-3-3',
+                                           '4-4-4-4-4'))
+
+#Getting the total number of observations in the suit data set and dividing it by the total number of hands simulated
+210/100000
+
+#Creating a table that shows the results
+Hand<-c("% Probability for Straight", "% Probability for Flush", "Simulated % Probability for Straight", "Simulated % Probability for Flush")
+Hand<-data.frame(Hand)
+Probability<-c("0.003924647", "0.001980792", "0.00347", "0.0021")
+Probability<-data.frame(Probability)
+Three<-cbind(Hand,Probability)
+kable(Three)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  kable_material_dark()%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:4, color="black")
+```
+As shown in this table, the actual percent probability and the simulated percent probability for a straight is lower than a flush.
+
+
+# **Question Four - Part A**
+```{r }
+#Creating scatterplot
+ggplot(demo, aes(x=polity2, y=gdp, color=polity2, na.rm=TRUE))+ 
+#Using geom_jitter to make more space between points without impacting the results
+#Using alpha to make the colour lighter
+  geom_jitter(alpha=.8)+
+#Creating labels for graph
+  labs(x="Polity Score", y="GDP", title= "Relationship between GDP and Polity Score")+
+#Altering the Y-axis scale
+  scale_y_continuous(limits = c(0, 20000),
+                     breaks = seq(from = 0, to=20000, by=5000))+
+#Changing colour theme of plot
+dark_theme_linedraw()+
+  scale_color_gradientn(colours = rainbow(5))+
+#Removing gridlines
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+#Removing legend title
+        legend.title = element_blank())+
+#Changing font size and colour
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow") 
+```
+
+# **Question Four - Part A - Interpretation of Graph**
+
+There appears to be a weak positive relationship between GDP and Polity scores. Put differently, as a state's level of democracy increases her GDP also increases. 
+
+# **Question Four - Part B**
+```{r } 
+#Creating table for expected value for regime type and GDP
+demo1<-demo
+#Making regime a categorical variable and recoding its values
+demo1$regime <-car::recode(demo1$regime,"'1'='Autocracy';'2'='Anoncracy'; '3'='Democracy'")
+#Using dplyr to summarize the mean for each regime type to get the expected value 
+Table1<-demo1%>%
+   group_by(regime)%>%
+  dplyr::summarize("Expected GDP" = mean(gdp, na.rm=TRUE))%>%
+  rename(Regime=regime)
+#Creating a table to present the results
+kable(Table1)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  kable_material_dark()%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:3, color="black")
+```
+# **Question Four - Part B - Interpretation of Table**
+
+The results of the table confirm my interpretation of the scatter plot. The table shows that as a state becomes more democratic her mean GDP increases. For example, autocracies are the least democratic and have the lowest average GDP (i.e., 1214.406) while democracies are the most democratic and have the highest average GDP (i.e., 7748.865).
+
+
+# **Question Four - Part C**
+```{r }
+#Finding variable of GDP given the regime type
+Tablev<-demo1%>%
+  group_by(regime)%>%
+  dplyr::summarize("Expected GDP Variance" = var(gdp, na.rm=TRUE))%>%
+  rename(Regime=regime)
+#Presenting results in table
+kable(Tablev)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  kable_material_dark()%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:3, color="black")
+```
+# **Question Four - Part C - Interpretation of Table**
+
+Although the variances for the different regime types are large, democracies have the largest variance at 28932315.2. This information entails that given a regime type, the cases do not cluster around the mean. A reason for why democracies' GDP differ so significantly from one case to another is because of the range of stability amongst democratic countries. For example, Hondoruas has a significant amount of civil unrest (e.g., intrastate war and high crime) while Canada and Switzerland have almost no political instability.
+
+# **Question Four - Part D**
+```{r } 
+#Subsetting data
+demo3<-dplyr::filter(demo1, regime!="Anoncracy")
+#Creating mean line
+mr<- plyr::ddply(demo3, "regime", summarise, mean=mean(gdp))
+#Creating histogram plot
+ggplot(demo3, aes(x=gdp, colour=regime))+
+#Setting bin size to 10 and changing the colour of the plots to red
+#Making the colour more transparent using alpha
+  geom_histogram(bins=30, 
+                 colour="firebrick",
+                 fill="firebrick",
+                 alpha=0.2)+
+#Changing the labels of the graph
+  labs(x="GDP", y="Count",title="Relationship Between GDP and Regime Type")+
+#Showing distribution of each regime type
+  facet_wrap(~regime)+
+#Altering the x-axis numeric scale
+  scale_x_continuous(limits = c(0, 20000),
+                     breaks = seq(from = 0, to=20000, by=5000))+
+  
+  dark_theme_linedraw()+
+  theme(axis.text.x = element_text(angle = 90))+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  geom_vline(data=mr, aes(xintercept=mean, color=regime),
+             linetype="dashed")+
+  theme(legend.position="none")+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+```
+
+# **Question Four - Part D - Interpretation of Graph**
+
+Neither of the histograms look normal, for autocracy the histogram is skewed heavily to the right, meaning that autocracies tend to have a low GDP. Whereas, the histogram for democracies is closer to a bimodal distribution, meaning most democracies tend to have a low or high GDP. 
+
+
+# **Question Four - Part E**
+```{r }
+# Joint probability of Regime type and Wealth 
+JP<-demo
+JP$regime<-as.character(JP$regime)
+JP$wealth<-as.character(JP$wealth)
+#Recoding the values of the wealth variable
+JP$wealth<- car::recode(JP$wealth,"'1'='Poor';'2'='Middle Income'; '3'='Rich'")
+#Recoding the values of regime variable
+JP$regime<- car::recode(JP$regime,"'1'='Autocracy';'2'='Anocracy'; '3'='Democracy'")
+
+#Calculating the joint probability and rounding the percentage
+JP<-JP%>% 
+  dplyr::count(wealth, regime)%>%
+  dplyr::mutate("prob" = 100*(n/sum(n)))%>% 
+  mutate(prob = sprintf("%0.2f", prob))%>%
+  dplyr::select(-n)%>%
+  tidyr::pivot_wider(names_from=regime, values_from=prob)%>%
+  rename(Wealth=wealth)
+
+#Pasting % sign onto values
+JP$Anocracy<- paste(JP$Anocracy, "%")
+JP$Autocracy<- paste(JP$Autocracy, "%")
+JP$Democracy<- paste(JP$Democracy, "%")
+
+#Creating table to present the results
+kable(JP)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  kable_material_dark()%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:3, color="black")
+``` 
+
+# **Question Four - Part F**
+
+The joint probability that a state is an anocracy and has middle income is 14.29%. This suggests that an anocracy is far more likely to have a middle income versus being rich or poor. 
+
+
+# **Question Four - Part G**
+```{r } 
+MP<-demo
+MP$regime<-as.character(MP$regime)
+MP<-MP%>% count(regime) %>%
+mutate("Probability" = 100*(n/sum(n)))%>%
+mutate(Probability = sprintf("%0.2f", Probability))%>%
+rename(Regime=regime, Count=n)
+  
+#Recoding the values of regime variable
+MP$Regime<- car::recode(MP$Regime,"'1'='Autocracy';'2'='Anocracy'; '3'='Democracy'")
+
+#Pasting % sign on probability values
+MP$Probability<- paste(MP$Probability, "%")
+
+#Presenting results in table
+kable(MP)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  kable_material_dark()%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:3, color="black")
+```
+
+# **Question Four - Part G - Interpretation of Table**
+
+This table indicates that the marginal probability for autocracy is 30.48%. This means, that if I were to randomly select a case out of the sample there is a 30.48% chance that it will be an autocratic state.
+
+
+# **Question Four - Part H**
+```{r } 
+#Calculating the probability of regime type given its wealth
+CP<-demo
+CP$regime<-as.character(CP$regime)
+CP$regime<-as.character(CP$regime)
+#Recoding the values of the wealth variable
+CP$wealth<- car::recode(CP$wealth,"'1'='Poor';'2'='Middle Income'; '3'='Rich'")
+#Recoding the values of regime variable
+CP$regime<- car::recode(CP$regime,"'1'='Autocracy';'2'='Anocracy'; '3'='Democracy'")
+
+#Calculating conditional probability
+CP<-CP%>% 
+  group_by(wealth)%>% 
+  count(regime) %>%
+  mutate("Probability" = 100*(n/sum(n)))%>%
+#Rounding the percentages to the second decimal
+  mutate(Probability = sprintf("%0.2f", Probability))
+CP<-data.frame(CP)
+CP$Probability<- paste(CP$Probability, "%")
+CP<-CP%>%
+  data.frame()%>%
+#Renaming variable titles 
+  dplyr::rename(Regime=regime, Wealth=wealth, Count=n)
+#Presenting results in table
+kable(CP)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  kable_material_dark()%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:8, color="black")
+
+
+```
+
+# **Question Four - Part H - Interpretation of Table**
+
+The results of this table suggest that if a country is rich, there is a 96.3% chance that it will be a democracy. 
+
+# **Question Four - Part I**
+```{r }
+#Calculating correlation and covariance
+cor(demo$polity2, demo$gdp)
+cov(demo$polity2, demo$gdp)
+#creating data set to present results
+Question<-c("Correlation", "Covariance")
+Question<-data.frame(Question)
+Answer<-c("0.6359307", "23162.69")
+Answer<-data.frame(Answer)
+four<-cbind(Question,Answer)
+#Creating Kable Table 
+kable(four)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  kable_material_dark()%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:2, color="black")
+```
+
+# **Question Four - Part I - Interpretation of Table**
+
+The table suggests that there is a moderate, positive linear relationship between polity score and GDP. In essence, a unit increase in a state's polity score increases GDP by a unit. Correlation scores tends to be an easier measure to interpret than covariance scores because correlation is standardized. It is difficult to say if a covariance score of 23162.69 is high or significant, however, a correlation score of 0.63 is recognized among statisticians as a positive linear relationship.
+
+# **Question Five - Part A**
+```{r } 
+#Creating density plot
+ggplot(population, aes(x = x)) + 
+#Changing colour and transparency 
+  geom_density(alpha = 0.5, colour = "deepskyblue", fill = "deepskyblue")+
+#Altering the labels of the graph
+  labs(x="Distribution", y="Density")+
+#Changing the theme of the graph
+  dark_theme_linedraw()+
+#Removing grid lines 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+#Removing legend
+        legend.position = "none")+
+#Changing colour and size of font
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+```
+
+# **Question Five - Part A - Interpretation of Graph**
+
+The graph suggests that the sample does not have a normal distribution as there is a large amount of dispersion. 
+
+# **Question Five - Part B**
+```{r } 
+set.seed(10)
+samp <- replicate(1000, sample(population$x, size = 5, replace = TRUE) %>% 
+                    mean())%>%
+                    data.frame()
+samp2<- data.frame(matrix(nrow = 1000, ncol = 1))
+colnames(samp2) <- c("Distribution")
+samp2$Distribution<-samp2$Distribution%>% replace_na("Sample Distribution")
+samp<-cbind(samp, samp2)
+norm<-data.frame(rnorm(1000, mean(samp$.), sd(samp$.)))
+norm2<- data.frame(matrix(nrow = 1000, ncol = 1))
+norm<-cbind(norm, norm2)
+colnames(norm) <- c(".", "Distribution")
+norm$Distribution<-norm$Distribution%>% replace_na("Normal Distribution")
+samp<-rbind(samp, norm)
+
+#Plot - 100
+ggplot(samp, aes(x = ., colour = Distribution, fill = Distribution)) + 
+  geom_density(alpha = 0.5)+
+  labs(x="Distribution", y="Density")+
+  dark_theme_linedraw()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  theme()+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+```
+
+
+# **Question Five - Part C**
+```{r }
+set.seed(10)
+samp <- replicate(1000, sample(population$x, size = 50, replace = TRUE) %>% mean())%>%data.frame()
+samp2<- data.frame(matrix(nrow = 50, ncol = 1))
+colnames(samp2) <- c("Distribution")
+samp2$Distribution<-samp2$Distribution%>% replace_na("Sample Distribution")
+samp<-cbind(samp, samp2)
+norm<-data.frame(rnorm(50, mean(samp$.),sd(samp$.)))
+norm2<- data.frame(matrix(nrow = 1000, ncol = 1))
+norm<-cbind(norm, norm2)
+colnames(norm) <- c(".", "Distribution")
+norm$Distribution<-norm$Distribution%>% replace_na("Normal Distribution")
+samp<-rbind(samp, norm)
+ggplot(samp, aes(x = ., colour = Distribution, fill = Distribution)) + 
+  geom_density(alpha = 0.5)+
+  labs(x="Distribution", y="Density")+
+  dark_theme_linedraw()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  theme()+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+```
+
+# **Question Five - Part D - Intepretating Graphs from Part B and C**
+
+My friend is wrong. As the size of samples and the number of simulations increase the distribution looks more and more normal. This supports the central limit theorem. This theorem posits that as one takes more samples from a population the distribution will become normal. In other words, it is irrelevant whether a sample's distribution is normal or not, if one takes repeated samples the eventual distribution will become normal. 
