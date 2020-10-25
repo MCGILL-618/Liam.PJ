@@ -1,0 +1,49 @@
+---
+title: "Interim Data Set and Check-in"
+author: "Liam Palcu-Johnston"
+subtitle: "McGill University"
+date: "October 26, 2020"
+output:
+  prettydoc::html_pretty:
+    theme: Cayman
+---
+
+```{r setup, include=FALSE}
+#Loading necessary packages
+pacman::p_load(prettydoc)
+#Here is the URL to the data set - https://github.com/ulfelder/earlywarningproject-statrisk-replication
+mk<- read.csv("~/Master's Political Science - Fall 2020/Political Science 618/Political Science 618 Assignments/Final Paper/earlywarningproject-statrisk-replication-master/data.out/ewp.statrisk.data.transformed.csv")
+```
+
+
+My research question is what aspects of political instability (e.g., war, political upheaval, riots, protests, ethnic conflict, economic turmoil) provoke a state to commit mass killings. To elaborate, academics agree that mass killing is not a random or irrational process (Finkel & Straus, 2012; Straus, 2013; Valentino, 2014). It is a strategy often utilized to preserve power against opposition that a state deems as threatening (Finkel & Straus, 2012; straus, 2013; Valentino, 2014). However, there is disagreement about what elements of instability increase the likelihood of mass killings (Finkel & Straus, 2012; straus, 2013; Valentino, 2014). For example, on the one hand, Balch-Lindsay, Huth & Valentino (2004) argue that mass killing is a tool used by states during civil war to eliminate civilians that benefit powerful guerrillas (Balch-Lindsay & Valentino, 2004). On the other hand, Anderton & Carter (2014) assert that insurgents' power is not important in predicting mass killings but instead, mass killing is an act of desperation when the state is weak (i.e., country is anocratic and has poorly developed institutions and economy). The weak structure of the state allows insurgents to attempt to overthrow the government. State officials will eliminate insurgents (and their accomplices) to remain in power (Anderton & Carter, 2014). The purpose of my research is to explore what elements of political instability will make a state feel it necessary to carry out mass atrocities. I will explore this question by conducting a large-n time-series cross-sectional quantitative analysis and use the Public Early Warning System for Mass Atrocities data set. This data set compiles information on all countries and instances of state-led mass killings between 1945 and 2014 (Early Warning Project, 2014; Ulfelder & Valentino, 2008; Ulfelder, 2013). Jay Ulfelder et al. examined numerous data sets to find variables that forecast instances of mass killings. The outcome variable I will use for my project is binary, where 1 depicts an occurrence of mass killing, and 0 depicts no occurrence of mass killing (Early Warning Project, 2014; Ulfelder & Valentino, 2008; Ulfelder, 2013). According to the authors, a mass killing happens when the state murders 1000 or more civilians belonging to a political, ethnic, economic, social or geographic group within a country's borders. An episode of mass killing starts when 100 civilians die. When less than 100 civilians die for three sequential years the episode is over. The year that will be coded as the end date for the event will be the first year with fewer than 100 deaths (Early Warning Project, 2014; Ulfelder & Valentino, 2008; Ulfelder, 2013).
+
+# **References**
+Anderton, C. H., & Carter, J. R. (2014). A New Look at Weak State Conditions and Genocide Risk. Peace Economics. Peace Science and Public Policy, 21(1), pp. 1–36. doi: 10.1515/peps-2014-0008
+
+Balch-Lindsay, D., Huth, P., & Valentino B. (2004). “Draining the Sea”: Mass Killing and Guerilla Warfare. International Organization, 58(2), pp. 375-407.
+
+Early Warning Project. (2014). Frequently Asked Questions. Retrieved from https://cpgearlywarning.wordpress.com/about/frequently-asked-questions/
+
+Finkel, E. & Straus, S. (2012). Macro, Meso, and Micro Research on Genocide: Gains, Shortcomings, and Future Areas of Inquiry. Genocide Studies and Prevention, 7(1), pp. 56-67.
+
+Ulfelder, J., & Valentino, B. (2008). Assessing Risks of State-Sponsored Mass Killing. Social Science Research Network, pp. 1-47. doi: 10.2139/ssrn.1703426
+
+Ulfelder, J. (2013). A Multimodel Ensemble to Forecast Onsets of State. Social Science Research Network, pp. 1-23.
+
+Straus, S. (2013). Political Science and Genocide. In Bloxham, D., & Moses, A. (1st ed.), The Oxford Handbook of Genocide Studies (pp. 163-181) Oxford, UK: Oxford University Press.
+
+Valentino, B. (2014). Why We Kill: The Political Science of Political Violence Against Civilians. Annual Review of Political Science, 17(1), pp. 89-103.
+
+Ulfelder, J., & Valentino, B. (2008). Assessing Risks of State-Sponsored Mass Killing. Social Science Research Network, pp. 1-47. doi: 10.2139/ssrn.1703426
+
+Ulfelder, J. (2013). A Multimodel Ensemble to Forecast Onsets of State. Social Science Research Network, pp. 1-23.
+
+Straus, S. (2013). Political Science and Genocide. In Bloxham, D., & Moses, A. (1st ed.), The Oxford Handbook of Genocide Studies (pp. 163-181) Oxford, UK: Oxford University Press.
+
+Valentino, B. (2014). Why We Kill: The Political Science of Political Violence Against Civilians. Annual Review of Political Science, 17(1), pp. 89-103.
+
+
+
+
+
