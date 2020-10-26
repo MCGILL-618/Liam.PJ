@@ -1,0 +1,736 @@
+---
+title: "Assignment Three: Problem Set"
+author: "Liam Palcu-Johnston"
+subtitle: "McGill University"
+date: "October 26, 2020"
+output:
+  prettydoc::html_pretty:
+    theme: Cayman
+---
+
+```{r setup }
+#Loading necessary packages
+pacman::p_load(tidyverse, kableExtra, data.table, ggplot2, ggdark, prettydoc, Hmisc, pastecs, qwraps2, ggpubr, numbers, car, tools, viridis, plotly) 
+
+#Uploading datasets and creating data sets that will be used in the assignment
+biden <- c(rep(1, 270), rep(0, 230))
+trump <- c(rep(0, 290), rep(1, 210))
+poll <- cbind("biden" = biden, "trump" = trump)
+poll<-as.data.frame(poll)
+olken <- read.csv("~/Master's Political Science - Fall 2020/Political Science 618/Political Science 618 Assignments/Assignment 3/student_materials_2020-master (3)/student_materials_2020-master/problem_sets/ps3/olken.csv")
+```
+
+## **Question 1A and 1B**
+````{r }
+#Question 1A and 1B
+n<-500
+#Caluclating the mean
+m<-(210/500)
+#Calculating the confidence intervals
+m-(4.4/100)
+m+(4.4/100)
+
+#Creating table to present results - The colour of the table show on the PDF but not on the RMD output
+Question<-c("Confidence Intervals")
+Answer<-c("0.376 to 0.464")
+one<-cbind(Question,Answer)
+kable(one)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  row_spec(1:1)%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:1, color="black")
+```
+
+# **Question 1A and 1B - Commentary**
+No, my friend is not correct. The confidence interval tells me that if I took 100 random samples and calculated confidence intervals for each of those samples, I can be confident that 95 of those intervals contain the true population mean.
+
+## **Question 1C and 1D**
+```{r }
+#1C
+#Figuring out the standard error by hand
+#I know that the mean, the output of qnorm(0.975), and the confidence interval
+#Therefore, I just do basic algebra to solve the standard error
+#0.42 + 1.959964 * se = 0.464
+#1.959964*se/1.959964=0.044/1.959964
+se<-0.02244939
+
+#1D
+#The sample variance is simply the standard error squared times 500
+(se^2)*500
+
+#Creating table to put in results
+Question<-c("Standard Error of the Sample", "Sample Variance")
+Answer<-c("0.02244939", "0.2519876")
+one<-cbind(Question,Answer)
+kable(one)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  row_spec(1:2)%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:2, color="black")
+```
+
+## **Question 1C and 1D - Explain the difference between standard error and sample variance**
+The results in my table show that my sample has a variance of 0.2519876 and a standard error of 0.02244939. Variance is the average squared distance from mu. In layman terms, variance shows how spread out the data points are. Sample variance is an estimator that equals the population variance on average. The standard error is the standard deviation divided by the square root of the sample size. This formula is a measure of uncertainty. It indicates how certain one can be that the sample mean reflects mu. In other words, it estimates how much the sample mean deviates from the population mean.
+
+# **Question 1E and 1F**
+```{r } 
+#1E
+#Calculating t-statistic 
+null_mean<-0.5
+se<-0.02244939
+df<-(500-1)
+m<-0.42
+t.statistic<-(m-null_mean)/(se)
+
+#1F - Using calculation to find p-value based on t.statistic 
+ 2*(pt(q=t.statistic, df=df))
+
+#Creating table to show results
+Question<-c("Test Statistic", "P-Value")
+Answer<-c("-3.563571", "0.0004009827")
+one<-cbind(Question,Answer)
+kable(one)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  row_spec(1:2)%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:2, color="black")
+```
+
+## **Question 1E and 1F - Commentary** 
+I have two hypotheses:
+
+1) My null hypothesis is that 50% of the population plan to vote for Trump
+2) My alternative hypothesis is that 50% of the population plan to not vote for Trump
+
+If the p-value is less than alpha (i.e., 0.05), I can reject the null hypothesis. The t-statistic is -3.563571 which indicates a p-value of 0.0004009827, suggesting a statistically significant relationship. Thus, the test supports the alternative hypothesis.
+
+# **Question 1G**
+```{r }
+#1Q
+#Using correlation test to see whether I want to use a paired or two-sample t-test
+cor(poll$trump,poll$biden)
+#Results of test -0.9219951, suggesting a strong negative correlation between variables. Thus in order to reduce variance to have a stronger test I should use a two-sample t-test instead of a paired t-test.
+
+#Conducting two-sample t-test
+t.test(poll$trump, poll$biden, alternative = "two.sided", var.equal = TRUE)
+
+#Creating table to present results
+Question<-c("T-Statistic", "Degrees of Freedom", "P-Value",
+            "95% Confidence Interval", "Mean of the Differences",
+            "Trump Mean", "Biden Mean")
+Answer<-c("-3.8216", "998", "0.0001408", "-0.18161798 to -0.05838202",
+          "0.42", "0.54")
+
+one<-cbind(Question,Answer)
+kable(one)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  row_spec(1:7)%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:7, color="black")
+```
+
+## **Question 1G - Commentary**
+
+# What hypotheses will be tested?
+The null hypothesis is that Trump has the same number of supporters as Biden. The alternative hypothesis is that Trump does not have the same number of supporters as Biden. 
+
+# Is it better to use a two-sample t-test or paired to t-test to test these hypotheses? 
+There is a strong negative correlation between variables (i.e., -0.9219951); therefore, it is better to use the two-sample t-test than the paired t-test because it increases statistical power and reduces variance.
+
+# What are the assumptions of these two types of tests?
+The assumptions of the two-sample t-test are that the variables are independent, normally distributed, and have equal variances. The assumptions of the paired t-test are that the variables are not independent and that the differences between variables are normally distributed.
+
+# What are the results of the experiment?
+The results show that there is a p-value of 0.0001408 which is less than alpha. Thus, I can reject the null hypothesis. 
+
+
+# **Bonus Question**
+```{r }
+#Bonus Question
+#Conducting a paired t-test
+t.test(poll$trump, poll$biden, alternative = "two.sided", paired=TRUE)
+
+#Putting results in table
+Question<-c("T-Statistic", "Degrees of Freedom", "P-Value",
+            "95% Confidence Interval", "Mean of the Differences")
+Answer<-c("-2.7566", "499", "0.006054", "-0.20552758 to -0.03447242",
+          "-0.12")
+one<-cbind(Question,Answer)
+kable(one)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  row_spec(1:5)%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:5, color="black")
+```
+
+## **Bonus Question - Which test give us a higher p-value? Why? Confirm this by running both tests on your data.**
+The results of show that the p-value for the paired t-test (i.e., 0.006054) is larger than the two-sample t-test (i.e., 0.0001408).
+
+# **Question 2A**
+```{r }
+#2A
+#Calculating the sample mean and its confidence intervals with 95% confidence
+n<-472
+m<-mean(olken$pct_missing)
+se<-sd(olken$pct_missing)/(sqrt(n))
+se
+m-qnorm(0.975)*se
+m+qnorm(0.975)*se
+
+#Creating table to show results
+Question<-c("Confidence Intervals", "Standard Error")
+Answer<-c("0.205249 to 0.2674068", "0.01585687")
+two<-cbind(Question,Answer)
+kable(two)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  row_spec(1:2)%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:2, color="black")
+```
+
+# **Question 2B**
+```{r}
+#2B
+#Conducting two-sided t-test
+t.test(x=olken$pct_missing, mu=0, alternative = c("two.sided"), conf.level = 0.95)
+
+#Presenting the results and showing them in a table
+Question<-c("T-Statistic", "Degrees of Freedom", "P-Value",
+            "95% Confidence Interval", "Mean")
+Answer<-c("14.904", "471", "P-Value < 0.00000000000000022", "0.2051690 to 0.2674869",
+          "0.2363279")
+two<-cbind(Question,Answer)
+kable(two)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  row_spec(1:5)%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:5, color="black")
+```
+
+## **Question 2B - Commentary**
+I will use the one-sample t-test to test my hypotheses. This test shows whether the sample mean of a variable is significantly larger or smaller than a hypothetical value.
+
+The hypotheses of my tests are as follows:
+
+H0: The true mean of the pct_missing variable equals zero
+
+H1: The true mean of the pct_missing variable does not equal zero
+
+The p-value is less than 0.00000000000000022 which means I can reject the null hypothesis. In other words, the test suggests that the mean of the pct-missing variable is significantly different from zero.
+
+# **Question 2C**
+```{r } 
+#2C 
+#Conducting two-sided t-test
+t.test(x=olken$pct_missing, mu=0.25, alternative = c("two.sided"), conf.level = 0.95)
+
+#Presenting the results and showing them in a table
+Question<-c("T-Statistic", "Degrees of Freedom", "P-Value",
+            "95% Confidence Interval", "Mean")
+Answer<-c("-0.86222", "471", "0.389", "0.2051690 to 0.2674869",
+          "0.2363279")
+two<-cbind(Question,Answer)
+kable(two)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  row_spec(1:5)%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:5, color="black")
+```
+
+## **Question 2C - Commentary**
+I will conduct the same one-sample t-test as above but set the hypothetical value to 0.25. 
+
+H0: The true mean of the pct_missing variable equals 0.25
+
+H1: The true mean of the pct_missing variable does not equal 0.25
+
+The p-value equals 0.389 which is larger than alpha. Therefore, I fail to reject the null hypothesis. 
+
+# **Question 2D**
+```{r } 
+#2D 
+#Conducting two-sided t-test
+t.test(olken$pct_missing~olken$treat_invite, alternative = "two.sided", conf=0.95, var.eq=FALSE, paired=FALSE)
+
+#Putting results in table
+Question<-c("T-Statistic", "Degrees of Freedom", "P-Value",
+            "95% Confidence Interval", "Treatment Group Mean", "Non-Treatment Group Mean")
+Answer<-c("0.75376", "333.66", "0.4515", "-0.04016183 to 0.09006088", "0.2278176", "0.2527671")
+two<-cbind(Question,Answer)
+kable(two)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  row_spec(1:6)%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:6, color="black")
+```
+
+## **Question 2D - Commentary** 
+
+# Can you reject the null hypothesis at the α = 0.05 level?
+In this section I will test two hypotheses using the Welch two-sample t-test. My null hypothesis is that the  differences of the average missing expenditures between treatment and non-treatment groups is equal to 0. My alternative hypothesis is that the differences of the average missing expenditures between treatment and non-treatment groups is not equal to 0.
+
+The results show a t-statistic of 0.75376 and a p-value of 0.4515. The p-value is greater than alpha (i.e., 0.05). This suggest that I cannot reject the null hypothesis. Meaning, that there are not significant differences between the means of the treatment and non-treatment group's missing expenditures.
+
+# Give a brief substantive explanation of your result
+The mean percent for the treatment group is 0.0249495 less than the non-treatment group. Essentially, when a town participates in the treatment program its corrupt spending decreases by an average of 0.0249495%. 
+
+# If you were to create a 95% confidence interval for the difference between Yt and Yt, would 0 be in the confidence interval?
+The t-test results show that a confidence interval of -0.04016183 to 0.09006088. Therefore, 0 would be in my confidence interval.
+
+# **Question 2E**
+```{r} 
+#2E
+#Conducting one-sided t-test
+t.test(olken$pct_missing~olken$treat_invite, alternative = "less", conf=0.95, var.eq=FALSE, paired=FALSE)
+
+#Presenting the results and showing them in a table
+Question<-c("T-Statistic", "Degrees of Freedom", "P-Value",
+            "95% Confidence Interval")
+Answer<-c("0.75376", "333.66", "0.7742", "-Infinity to 0.07954608")
+two<-cbind(Question,Answer)
+kable(two)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  row_spec(1:4)%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:4, color="black")
+```
+
+## **Question 2E - Commentary** 
+I will test the following hypotheses using a one-sided t-test:
+
+1) My null hypothesis is that the differences of the average missing expenditures between treatment and non-treatment groups is equal to 0
+
+2) My alternative hypothesis is that the differences of the average missing expenditures between treatment and non-treatment groups is less than 0
+
+The one-sided test assumes that not only are the variables normally distributed and independent but that the hypothesis can only be wrong in one direction. There is no obvious reason to believe that the differences of means between treatment and non-treatment group's can only be less than zero, therefore, the t-test is not effective test for these hypotheses. 
+
+# **Question 2F**
+```{r }
+#2F
+#Conducting two-sided t-test
+t.test(olken$mosques~olken$treat_invite, alternative = "two.sided", conf=0.95, var.eq=FALSE, paired=FALSE)
+
+#Presenting the results and showing them in a table
+Question<-c("T-Statistic", "Degrees of Freedom", "P-Value",
+            "95% Confidence Interval", "Treatment Group Mean", "Non-Treatment Group Mean")
+Answer<-c("0.66241", "327", "0.5082", "-0.1051269 to 0.2118667",  "1.472887", "1.419518")
+two<-cbind(Question,Answer)
+kable(two)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  row_spec(1:6)%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:6, color="black")
+```
+
+## **Question 2F - Commentary**
+
+# What hypotheses will be tested?
+I will conduct a two-sample t-test where I assume that the variables are independent and that the variances are unequal. The null hypothesis is that the differences of the average number of mosques per 1000 people is equal between treatment and non-treatment groups. The alternative hypothesis is that the differences of the average number of mosques per 1000 people is not equal between treatment and non-treatment groups.
+
+# Can you reject the null hypothesis at the α = 0.05 level?
+The results in my table show a t-statistic 0.66241 and p-value of 0.5082. The p-value is greater than alpha, ergo, I cannot reject the null hypothesis.
+
+# Does your result make sense intuitively in an experimental setting where the treatment variable was randomly assigned? Why or why not?
+These results do make sense. The treatment program was designed to reduce Indonesian villages from corruptly spending public funds meant for communal projects. The results in the previous section show that there is no statistically significant relationship between the treatment program and the difference between what villages claimed they spent on communal projects versus what they actually spent. Essentially, because the treatment program did not decrease corrupt public spending it makes sense that the program did not increase the number of mosques built. 
+
+# **Question 2G**
+The way to decrease type 1 error of a t-test is by decreasing alpha. Essentially, the standard practice in statistics is to reject the null hypothesis when the p-value is less than 0.05. Setting alpha to 0.01 increases how confident one can be about the significance of a relationship between variables. Consequently, this decrease in alpha will reduce the likelihood that one will incorrectly reject the null hypothesis when it is true. However, the downside of decreasing the chances of type 1 error is that it increases the likelihood of type 2 error. 
+
+# **Question 3A**
+```{r} 
+set.seed(102020)
+X1<- rnorm(100000, 5, 2)
+X2<-rexp(100000, 0.2)
+#Calculating confidence intervals for X1
+X1h<-as.data.frame(X1)
+n<-100000
+#Caluclating the mean
+m<-mean(X1h$X1)
+#Calculating the standard error
+se<-sd(X1h$X1)/(sqrt(n))
+#Calculating the confidence intervals
+m-qnorm(0.975)*se
+m+qnorm(0.975)*se
+
+#Creating Histogram
+x1p<-ggplot(X1h, aes(x=X1)) +
+#Altering bindwidth and colour of plot
+  geom_histogram(bins=30,
+                 colour="forestgreen",
+                 fill="forestgreen",
+                 alpha=0.3)+
+#Creating Mean Line for Plot
+geom_vline(aes(xintercept=mean(X1)),
+           color="snow", linetype="dashed", size=1) +
+#Changing the names of the title and x-y axis titles
+labs(x="Scale", y="Count",
+     title="Distribution of X1")+
+#Changing scale of X-Y axis
+  scale_x_continuous(limits = c(-5.0, 15),
+                     breaks = seq(from = -5, to=15, by=5))+
+  scale_y_continuous(limits = c(0, 15000),
+                     breaks = seq(from = 0, to=15000, by=5000))+
+  #Changing the overall colour theme of the plot
+  dark_theme_gray()+
+  #Removing grid lines on plot
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  #Removing legend
+  theme(legend.position="none")+
+  #Changing font size and colour
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+#Creating interactive plot
+ggplotly(x1p)
+```
+
+# **Question 3A**
+```{r }
+set.seed(102020)
+X2<-rexp(100000, 0.2)
+#Creating confidence intervals for X2
+X2h<-as.data.frame(X2)
+#Caluclating the mean
+m<-mean(X2h$X2)
+#Calculating the standard error
+se<-sd(X2h$X2)/(sqrt(n))
+#Calculating the confidence intervals
+m-qnorm(0.975)*se
+m+qnorm(0.975)*se
+
+#Creating Histogram for X2
+x2p<-ggplot(X2h, aes(x=X2)) +
+#Altering bindwidth and colour of plot
+  geom_histogram(bins=30,
+                 colour="forestgreen",
+                 fill="forestgreen",
+                 alpha=0.3)+
+#Creating Mean Line for Plot
+geom_vline(aes(xintercept=mean(X2)),
+           color="snow", linetype="dashed", size=1) +
+#Changing the names of the title and x-y axis titles
+labs(x="Scale", y="Count",
+     title="Distribution of X2")+
+  #Changing scale of X-Y axis
+  scale_x_continuous(limits = c(0, 75),
+                     breaks = seq(from = 0, to=75, by=5))+
+  #Changing the overall colour theme of the plot
+  dark_theme_gray()+
+  #Removing grid lines on plot
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  #Removing legend
+  theme(legend.position="none")+
+  #Changing font size and colour
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+#Creating interactive plot
+ggplotly(x2p)
+```
+
+## **Question 3A - Commentary**
+The true population mean for X1 appears to be 4.998193 and the true population mean for X2 seems to be 4.993446.
+
+# **Question 3B**
+```{r } 
+set.seed(102020)
+X1<- rnorm(100000, 5, 2)
+X2<-rexp(100000, 0.2)
+#Creating data frame to use for loop
+samp<- data.frame(sample=1:100,SM1=NA,SM2=NA, x1CI1=NA, x1CI2=NA, x2CI1=NA, x2CI2=NA, Group=NA)
+
+#Creating loop
+n<-8
+for(i in 1:100) {
+#Getting random samples from both data sets 8 at a time
+  lx1<-(sample(X1, 8, replace=FALSE))
+  lx2<-(sample(X2, 8, replace=FALSE))
+#Binding data sets together
+  x<-(cbind.data.frame(lx1, lx2))
+#Taking the mean of the sample for both variables
+  samp$SM1[i] <- mean(x$lx1)
+  samp$SM2[i] <- mean(x$lx2)
+#Creating confidence intervals for sample
+  samp$x1CI1[i] <- (mean(x$lx1)+qnorm(0.975) * (sd(x$lx1)/(sqrt(n))))
+  samp$x1CI2[i] <- (mean(x$lx1)-qnorm(0.975) * (sd(x$lx1)/(sqrt(n))))
+  samp$x2CI1[i] <- (mean(x$lx2)+qnorm(0.975) * (sd(x$lx2)/(sqrt(n))))
+  samp$x2CI2[i] <- (mean(x$lx2)-qnorm(0.975) * (sd(x$lx2)/(sqrt(n))))
+}
+
+#X1
+samp1<-samp%>% select(sample, SM1, x1CI1, x1CI2, Group)
+m<-mean(samp1$SM1)
+#Finding which confidence intervals do not contain the the true population mean
+for(i in 1:nrow(samp1)){if(samp1$x1CI1[i]<m){samp1$Group [i]<-"Does not contain population mean"}}
+for(i in 1:nrow(samp1)){if(samp1$x1CI2[i]>m){samp1$Group [i]<-"Does not contain population mean" }}
+
+#Finding which confidence intervals contain the true population mean
+samp1$Group<-samp1$Group%>% replace_na("Contains population mean")
+
+#Chosing colour for plot
+c<-c("forestgreen", "steelblue")
+
+#Making errorplot
+ggplot(samp1, aes(SM1, color=Group)) +
+#Creating mean line
+  geom_vline(aes(xintercept=mean(SM1)),
+#Changing colour of line
+  color="snow", linetype="dashed", size=1) +
+#Creating error bars for plot
+  geom_errorbarh(aes(y=sample, xmin=x1CI1, xmax=x1CI2, height=2))+
+  coord_flip()+
+#Choosing colour for the error bars
+  scale_colour_manual(values=c)+
+#Labeling the plot
+  labs(x="Scale", y="Sample",
+     title="X1 Confidence Intervals")+
+#Changing scale of X-Y axis
+  scale_x_continuous(limits = c(1, 9),
+  breaks = seq(from = 1, to=9, by=1))+
+ #Changing the overall colour theme of the plot
+  dark_theme_gray()+
+#Removing grid lines on plot
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+#Changing font size and colour
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+
+```
+
+# **Question 3B**
+```{r }
+#Doing the exact same thing I did in the previous question for the X2 data set
+set.seed(102020)
+X1<- rnorm(100000, 5, 2)
+X2<-rexp(100000, 0.2)
+samp<-data.frame(sample=1:100,SM1=NA,SM2=NA, x1CI1=NA, x1CI2=NA, x2CI1=NA, x2CI2=NA, Group=NA)
+
+n<-8
+for(i in 1:100) {
+  lx1<-(sample(X1, 8, replace=FALSE))
+  lx2<-(sample(X2, 8, replace=FALSE))
+  x<-(cbind.data.frame(lx1, lx2))
+  samp$SM1[i] <- mean(x$lx1)
+  samp$SM2[i] <- mean(x$lx2)
+  samp$x1CI1[i] <- (mean(x$lx1)+qnorm(0.975) * (sd(x$lx1)/(sqrt(n))))
+  samp$x1CI2[i] <- (mean(x$lx1)-qnorm(0.975) * (sd(x$lx1)/(sqrt(n))))
+  samp$x2CI1[i] <- (mean(x$lx2)+qnorm(0.975) * (sd(x$lx2)/(sqrt(n))))
+  samp$x2CI2[i] <- (mean(x$lx2)-qnorm(0.975) * (sd(x$lx2)/(sqrt(n))))
+}
+
+#X2
+samp2<-samp%>% select(sample, SM2, x2CI1, x2CI2, Group)
+m<-mean(samp2$SM2)
+for(i in 1:nrow(samp2)){if(samp2$x2CI1[i]<m){samp2$Group [i]<-"Does not contain population mean"}}
+for(i in 1:nrow(samp2)){if(samp2$x2CI2[i]>m){samp2$Group [i]<-"Does not contain population mean"}}
+samp2$Group<-samp2$Group%>% replace_na("Contains the population mean")
+
+
+c<-c("forestgreen", "steelblue")
+
+#Making errorplot
+ggplot(samp2, aes(SM2, color=Group)) +
+  geom_vline(aes(xintercept=mean(SM2)),
+  color="snow", linetype="dashed", size=1) +
+  geom_errorbarh(aes(y=sample, xmin=x2CI1, xmax=x2CI2, height=2))+
+  coord_flip()+
+  scale_colour_manual(values=c)+
+  labs(x="Scale", y="Sample",
+     title="X2 Confidence Intervals")+
+  dark_theme_gray()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+```
+
+## **Question 3B - Commentary**
+For X1 there are 8 confidence intervals that do not contain the true population mean and for X2 there are 11 confidence intervals that do not contain the true population mean. With respect to the confidence intervals that do not contain mu, X1 has intervals that are both smaller and larger than the true mean, while X2 has only intervals that are smaller than population mean.
+
+# **Question 3C - Results**
+```{r } 
+# **Question 3C - X1 Results**
+#Doing the same thing as I did for the previous two questions but for different size sample and replications
+#Setting seed for calculations
+set.seed(102020)
+X1<- rnorm(100000, 5, 2)
+X2<-rexp(100000, 0.2)
+samp<- data.frame(sample=1:1000,SM1=NA,x1CI1=NA, x1CI2=NA, group=NA)
+#X1 - Collect a random of 8, 1000 times
+sampx18<-samp
+n<-8
+for(i in 1:1000) { 
+  lx1<-(sample(X1, 8, replace=FALSE))
+  x<-(as.data.frame(lx1))
+  sampx18$SM1[i] <- mean(x$lx1)
+  sampx18$x1CI1[i] <- (mean(x$lx1)+qnorm(0.975) * (sd(x$lx1)/(sqrt(n))))
+  sampx18$x1CI2[i] <- (mean(x$lx1)-qnorm(0.975) * (sd(x$lx1)/(sqrt(n))))
+} 
+m<-mean(sampx18$SM1)
+for(i in 1:nrow(sampx18)){if(sampx18$x1CI1[i]<m){sampx18$group [i]<-"Does not contain population mean"}}
+for(i in 1:nrow(sampx18)){if(sampx18$x1CI2[i]>m){sampx18$group [i]<-"Does not contain population mean"}}
+sampx18$group<-sampx18$group%>% replace_na("Contains population mean")
+#Using table to find coverage probability
+table(sampx18$group)
+#90.7% - X1 for 8 sample selected 1000 times
+
+#X1 - Collect a random of 20, 1000 times
+sampx120<-samp
+n<-20
+set.seed(102020)
+for(i in 1:1000) { 
+  lx1<-(sample(X1, 20, replace=FALSE))
+  x<-(as.data.frame(lx1))
+  sampx120$SM1[i] <- mean(x$lx1)
+  sampx120$x1CI1[i] <- (mean(x$lx1)+qnorm(0.975) * (sd(x$lx1)/(sqrt(n))))
+  sampx120$x1CI2[i] <- (mean(x$lx1)-qnorm(0.975) * (sd(x$lx1)/(sqrt(n))))
+} 
+m<-mean(sampx120$SM1)
+for(i in 1:nrow(sampx120)){if(sampx120$x1CI1[i]<m){sampx120$group [i]<-"Does not contain population mean" }}
+for(i in 1:nrow(sampx120)){if(sampx120$x1CI2[i]>m){sampx120$group [i]<-"Does not contain population mean" }}
+sampx120$group<-sampx120$group%>%replace_na("Contains population mean")
+#Table
+table(sampx120$group)
+#93.7% - X1 for 20 sample selected 1000 times
+
+#X1 - Collect a random of 50, 1000 times
+sampx150<-samp
+n<-50
+set.seed(102020)
+for(i in 1:1000) { 
+  lx1<-(sample(X1, 50, replace=FALSE))
+  x<-(as.data.frame(lx1))
+  sampx150$SM1[i] <- mean(x$lx1)
+  sampx150$x1CI1[i] <- (mean(x$lx1)+qnorm(0.975) * (sd(x$lx1)/(sqrt(n))))
+  sampx150$x1CI2[i] <- (mean(x$lx1)-qnorm(0.975) * (sd(x$lx1)/(sqrt(n))))
+} 
+m<-mean(sampx150$SM1)
+for(i in 1:nrow(sampx150)){if(sampx150$x1CI1[i]<m){sampx150$group [i]<-"Does not contain population mean" }}
+for(i in 1:nrow(sampx150)){if(sampx150$x1CI2[i]>m){sampx150$group [i]<-"Does not contain population mean" }}
+sampx150$group<-sampx150$group%>% replace_na("Contains population mean")
+#Table
+table(sampx150$group)
+#94% - X1 for 50 sample selected 1000 times
+
+#X1 - Collect a random of 500, 1000 times
+sampx500<-samp
+n<-500
+set.seed(102020)
+for(i in 1:1000) { 
+  lx1<-(sample(X1, 500, replace=FALSE))
+  x<-(as.data.frame(lx1))
+  sampx500$SM1[i] <- mean(x$lx1)
+  sampx500$x1CI1[i] <- (mean(x$lx1)+qnorm(0.975) * (sd(x$lx1)/(sqrt(n))))
+  sampx500$x1CI2[i] <- (mean(x$lx1)-qnorm(0.975) * (sd(x$lx1)/(sqrt(n))))
+} 
+for(i in 1:nrow(sampx500)){if(sampx500$x1CI1[i]<m){sampx500$group [i]<-"Does not contain population mean" }}
+for(i in 1:nrow(sampx500)){if(sampx500$x1CI2[i]>m){sampx500$group [i]<-"Does not contain population mean" }}
+sampx500$group<-sampx500$group%>% replace_na("Contains population mean")
+#Table
+table(sampx500$group)
+#95.7% - X1 for 500 sample selected 1000 times
+
+# **Question 3C - X2 Results**
+set.seed(102020)
+X1<- rnorm(100000, 5, 2)
+X2<-rexp(100000, 0.2)
+samp<-data.frame(sample=1:1000,SM2=NA, x2CI1=NA, x2CI2=NA, group=NA)
+#X2 - Collect a random of 8, 1000 times
+sampx28<-samp
+#number for loop
+n<-8
+set.seed(102020)
+for(i in 1:1000) {
+  lx2<-(sample(X2, 8, replace=FALSE))
+  x<-(as.data.frame(lx2))
+  sampx28$SM2[i] <- mean(x$lx2)
+  sampx28$x2CI1[i] <- (mean(x$lx2)+qnorm(0.975) * (sd(x$lx2)/(sqrt(n))))
+  sampx28$x2CI2[i] <- (mean(x$lx2)-qnorm(0.975) * (sd(x$lx2)/(sqrt(n))))
+} 
+m<-mean(sampx28$SM2)
+for(i in 1:nrow(sampx28)){if(sampx28$x2CI1[i] < m){sampx28$group [i] <-"Does not contain population mean"}}
+for(i in 1:nrow(sampx28)){if(sampx28$x2CI2[i]>m){sampx28$group[i]<-"Does not contain population mean"}}
+sampx28$group<-sampx28$group%>% replace_na("Contains population mean")
+#Table
+table(sampx28$group)
+#86% - X2 for 8 sample selected 1000 times
+
+#X2 - Collect a random of 20, 1000 times
+sampx220<-samp
+n<-20
+set.seed(102020)
+for(i in 1:1000) {
+  lx2<-(sample(X2, 20, replace=FALSE))
+  x<-(as.data.frame(lx2))
+  sampx220$SM2[i] <- mean(x$lx2)
+  sampx220$x2CI1[i] <- (mean(x$lx2)+qnorm(0.975) * (sd(x$lx2)/(sqrt(n))))
+  sampx220$x2CI2[i] <- (mean(x$lx2)-qnorm(0.975) * (sd(x$lx2)/(sqrt(n))))
+} 
+m<-mean(sampx220$SM2)
+for(i in 1:nrow(sampx220)){if(sampx220$x2CI1[i] < m){sampx220$group [i] <-"Does not contain population mean" }}
+for(i in 1:nrow(sampx220)){if(sampx220$x2CI2[i]>m){sampx220$group [i]<-"Does not contain population mean" }}
+sampx220$group<-sampx220$group%>%replace_na("Contains population mean")
+#Table
+table(sampx220$group)
+#91.5% - X2 for 20 sample selected 1000 times
+
+#X2 - Collect a random of 50, 1000 times
+sampx250<-samp
+n<-50
+set.seed(102020)
+for(i in 1:1000) {
+  lx2<-(sample(X2, 50, replace=FALSE))
+  x<-(as.data.frame(lx2))
+  sampx250$SM2[i] <- mean(x$lx2)
+  sampx250$x2CI1[i] <- (mean(x$lx2)+qnorm(0.975) * (sd(x$lx2)/(sqrt(n))))
+  sampx250$x2CI2[i] <- (mean(x$lx2)-qnorm(0.975) * (sd(x$lx2)/(sqrt(n))))
+} 
+m<-mean(sampx250$SM2)
+for(i in 1:nrow(sampx250)){if(sampx250$x2CI1[i] < m){sampx250$group [i] <-"Does not contain population mean" }}
+for(i in 1:nrow(sampx250)){if(sampx250$x2CI2[i]>m){sampx250$group [i]<-"Does not contain population mean" }}
+sampx250$group<-sampx250$group%>% replace_na("Contains population mean")
+#Table
+table(sampx250$group)
+#93.3% - X2 for 50 sample selected 1000 times
+
+#X2 - Collect a random of 500, 1000 times
+sampx2500<-samp
+n<-500
+set.seed(102020)
+for(i in 1:1000) {
+  lx2<-(sample(X2, 500, replace=FALSE))
+  x<-(as.data.frame(lx2))
+  sampx2500$SM2[i] <- mean(x$lx2)
+  sampx2500$x2CI1[i] <- (mean(x$lx2)+qnorm(0.975) * (sd(x$lx2)/(sqrt(n))))
+  sampx2500$x2CI2[i] <- (mean(x$lx2)-qnorm(0.975) * (sd(x$lx2)/(sqrt(n))))
+} 
+m<-mean(sampx2500$SM2)
+for(i in 1:nrow(sampx2500)){if(sampx2500$x2CI1[i] < m){sampx2500$group [i] <-"Does not contain population mean" }}
+for(i in 1:nrow(sampx2500)){if(sampx2500$x2CI2[i]>m){sampx2500$group [i]<-"Does not contain population mean" }}
+sampx2500$group<-sampx2500$group%>% replace_na("Contains population mean")
+#Table
+table(sampx2500$group)
+#94.3% - X2 for 500 sample selected 1000 times
+
+# **Question 3C - Results**
+Sample<-c("X1 8 Sample","X1 20 Sample", "X1 50 Sample", "X1 500 Sample",
+   "X2 8 Samples","X2 20 Sample", "X2 50 Sample", "X2 500 Sample")
+Probability<-c("90.7%", "93.7%", "94%", "95.7%", "86%", "91.5%", "93.3%", "94.3%")
+three<-cbind(Sample, Probability)
+kable(three)%>%kable_styling(bootstrap_options = c("hover", "condensed"))%>%
+  row_spec(1:8)%>%
+  column_spec(1, bold=TRUE,  color="white")%>%
+  row_spec(0, bold=TRUE, color="white")%>%
+  row_spec(1:8, color="black")
+```
+
+## **Question 3C - Commentary**
+For both X1 and X2 the coverage probability increases as the sample size increases. For example, when I randomly sampled 8 cases 1000 times the coverage probability was 90.7% but when I randomly sampled 500 cases 1000 times the coverage probability was 95.7%. The fundamental difference between the results of X1 and X2 is that X2 samples had a consistently smaller coverage probability than the X1 samples. 
