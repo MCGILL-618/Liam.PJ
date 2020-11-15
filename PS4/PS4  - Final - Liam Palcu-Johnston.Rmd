@@ -1,0 +1,732 @@
+---
+title: "Assignment Four: Problem Set"
+author: "Liam Palcu-Johnston"
+subtitle: "McGill University"
+date: "November 16, 2020"
+output:
+  prettydoc::html_pretty:
+    theme: hpstr
+---
+# **Question 1**
+### Question 1A - Comparing B0 and B1 estimate distributions 
+```{r setup}
+#Loading packages that will be used in script
+pacman::p_load(tidyverse, kableExtra, data.table, ggplot2, ggdark, prettydoc, Hmisc, pastecs, qwraps2, ggpubr, numbers, car, tools, viridis, plotly, sjPlot, sjmisc, sjlabelled, jtools, ggstance, ggthemes, plotly, gridExtra, MASS)
+#Loading data sets
+x <- read.csv("~/PS4 - Assignment/x.csv", sep="")
+
+#Creating loop
+m<-1000
+colnames(x)<-c("x")
+#Creating data set for loop
+samp<-data.frame(sample=1:m,est.i=NA, se.i=NA, est.x=NA, se.x=NA)
+set.seed(100)
+#Creating loop
+for(i in 1:m) {
+#Sampling errors
+  e<-(data.frame(rnorm(1000)))
+  colnames(e)<-c("e")
+  #Creating Y variable 
+  y<-(data.frame(3 + (5 * x$x) + e$e))
+  colnames(y)<-c("y")
+  #Binding x and y data sets
+  df<-cbind(x, y)
+  #Running regressions
+  reg<-(lm(data=df, formula= y~x))
+  #Sampling B0 and B0 and their standard error
+  samp$est.i[i]<-summary(reg)$coefficients[1,1]
+  samp$se.i[i]<-summary(reg)$coefficients[1,2]
+  samp$est.x[i]<-summary(reg)$coefficients[2,1]
+  samp$se.x[i]<-summary(reg)$coefficients[2,2]
+}
+
+#Creating plot for sample B0
+p1<-ggplot(samp, aes(x=est.i)) +
+  geom_histogram(aes(y=..density..),
+    bins=30,
+    colour="darkorchid",
+               fill="darkorchid",
+               alpha=0.3)+
+#Adding mean line
+  geom_vline(aes(xintercept=mean(est.i)),
+             color="snow", linetype="dashed", size=1) +
+labs(x=bquote(hat(beta)[0]),
+       y="Density"
+       ,freq=F)+
+  theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+#Creating plot for sample B1
+p2<-ggplot(samp, aes(x=est.x)) +
+  geom_histogram(aes(y=..density..), 
+                 bins=30,
+    colour="darkorchid",
+               fill="darkorchid",
+               alpha=0.3)+
+  geom_vline(aes(xintercept=mean(est.x)),
+             color="snow", linetype="dashed", size=1) +
+  labs(x=bquote(hat(beta)[1]),
+       freq=F,
+       y=element_blank())+
+  theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+#Putting plots side by side
+grid.arrange(p1, p2, ncol=2)
+```
+
+### Question 1A - Are the OLS estimators biased?
+An unbiased estimator is one that will (on average) have the same value or close to the same value after repeated sampling. ${\beta}_0$ has a value of 3 and ${\beta}_1$ has a value of 5. As shown by the graphs the sample intercept mean is 3.001504 and the sample slope mean is 4.998145. Ergo, the OLS estimators are not biased.
+
+```{r }
+sd.i<-sd(samp$est.i)
+sd.x<-sd(samp$est.x)
+se.i<-mean(samp$se.i)
+se.x<-mean(samp$se.x)
+
+o<-data.frame(c("Standard Deviation of Sample B0", "Standard Deviation of Sample B1", "Standard Error of B0", "Standard Error of B1"))
+colnames(o)<-c("Predictors")
+t<-data.frame(c("0.03135363", "0.03097053", "0.03161968", "0.03153405"))
+colnames(t)<-c("Results")
+t<-cbind(o,t)
+kable(t, digits=0)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  column_spec(1, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(0, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(1:4, color="black")
+
+```
+
+### Question 1A - Do the standard errors you get in the regressions match the standard deviation of the sampling distribution?
+No, but they are extremely close. For $\hat{\beta}_0$, its standard deviation is 0.03135363 and its standard error is 0.03161968. Thus, there is a 0.00026605 difference. For $\hat{\beta}_1$, its standard deviation is 0.03097053 and its standard error 0.03153405. Ergo, the difference between the standard deviation and standard error is 0.00056352.
+
+### Question 1B - What do you notice as n increases? Why is this happening?
+```{r }
+x<-slice_head(x, n = 4)
+x1<-x
+colnames(x1)<-c("x1")
+x2<-x
+colnames(x2)<-c("x2")
+set.seed(100)
+samp<-data.frame(sample=1:m, est.i1=NA, est.x1=NA, est.i2=NA, est.x2=NA)
+for(i in 1:m){
+#Sample with 4
+  e1<-data.frame(rexp(4, rate = 0.5)-2)
+  colnames(e1)<-c("e1")
+  y1<-(data.frame(3 + (5 * x1$x1) + e1$e1))
+  colnames(y1)<-c("y1")
+  df1<-cbind(x1, y1)
+  reg1<-(lm(data=df1, formula= y1~x1))
+  samp$est.i1[i]<-summary(reg1)$coefficients[1,1]
+  samp$est.x1[i]<-summary(reg1)$coefficients[2,1]
+#Sample with 1000
+  e2<-data.frame(rexp(m, rate = 0.5)-2)
+  colnames(e2)<-c("e2")
+  y2<-(data.frame(3 + (5 * x2$x2) + e2$e2))
+  colnames(y2)<-c("y2")
+  df2<-cbind(x2, y2)
+  reg2<-(lm(data=df2, formula= y2~x2))
+  samp$est.i2[i]<-summary(reg2)$coefficients[1,1]
+  samp$est.x2[i]<-summary(reg2)$coefficients[2,1]
+}
+
+#Ploting for sample B0 with random samples that were 4
+p1<-ggplot(samp, aes(x=est.i1)) +
+  geom_histogram(aes(y=..density..),
+                 bins=30,
+                 colour="darkorchid",
+                 fill="darkorchid",
+                 alpha=0.3)+
+  geom_vline(aes(xintercept=mean(est.i1)),
+             color="snow", linetype="dashed", size=1) +
+  labs(x=bquote("4 Sample" ~ hat(beta)[0]),
+       y="Density",freq=F)+
+  theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+#Ploting for sample B0 with random samples that were 1000
+p2<-ggplot(samp, aes(x=est.i2)) +
+  geom_histogram(aes(y=..density..),
+                 bins=30,
+                 colour="darkorchid",
+                 fill="darkorchid",
+                 alpha=0.3)+
+  geom_vline(aes(xintercept=mean(est.i2)),
+             color="snow", linetype="dashed", size=1) +
+  labs(x=bquote("1000 Sample" ~ hat(beta)[0]),
+       y=element_blank(),freq=F)+
+  theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+#Ploting for sample B1 with random samples that were 4
+p3<-ggplot(samp, aes(x=est.x1)) +
+  geom_histogram(aes(y=..density..),
+                 bins=30,
+                 colour="darkorchid",
+                 fill="darkorchid",
+                 alpha=0.3)+
+  geom_vline(aes(xintercept=mean(est.x1)),
+             color="snow", linetype="dashed", size=1) +
+  labs(x=bquote("4 Sample" ~ hat(beta)[1]),
+       y="Density",freq=F)+
+  theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+#Ploting for sample B1 with random samples that were 1000
+p4<-ggplot(samp, aes(x=est.x2)) +
+  geom_histogram(aes(y=..density..),
+                 bins=30,
+                 colour="darkorchid",
+                 fill="darkorchid",
+                 alpha=0.3)+
+  geom_vline(aes(xintercept=mean(est.x2)),
+             color="snow", linetype="dashed", size=1) +
+  labs(x=bquote("1000 Sample" ~ hat(beta)[1]),
+       y=element_blank(),freq=F)+
+  theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+#Putting plots into grid to show them side-by-side
+grid.arrange(p1, p2, p3, p4, ncol=2)
+```
+
+The graph with the smaller sample has a distribution that is spread out (i.e., has a higher rate of variance). As the sample size increases the distributions become normal. The reason this is happening is because of the central limit theorm. An exponential function is not normal but that is irrelevant. As I increase the size of my sample, it should result in a normal distribution. Additionally, as I take more samples the variance, in theory, should also decrease.
+
+### Question 1C
+```{r }
+x <- read.csv("~/PS4 - Assignment/x.csv", sep="")
+colnames(x)<-c("x")
+
+#Creating heteroscedasticity
+s<-m^1.3
+set.seed(100)
+samp<-data.frame(sample=1:m, est.i=NA, est.x=NA)
+#Creating loop
+for(i in 1:m) {
+  e<-data.frame(rnorm(m, mean=0, sd=sqrt(s)))
+  colnames(e)<-c("e")
+  y<-(data.frame(3 + (5 * x$x) + e$e))
+  colnames(y)<-c("y")
+  df<-cbind(x, y)
+  reg<-(lm(data=df, formula= y~x))
+  samp$est.i[i]<-summary(reg)$coefficients[1,1]
+  samp$est.x[i]<-summary(reg)$coefficients[2,1]
+}
+
+
+#Creating plot for sample B0 
+p1<-ggplot(samp, aes(x=est.i)) +
+  geom_histogram(aes(y=..density..),
+                 bins=30,
+                 colour="darkorchid",
+                 fill="darkorchid",
+                 alpha=0.3)+
+  #Adding mean line
+  geom_vline(aes(xintercept=mean(est.i)),
+             color="snow", linetype="dashed", size=1) +
+  labs(x=bquote(hat(beta)[0]),
+       y="Density"
+       ,freq=F)+
+  theme_solarized(light = FALSE)+
+  scale_x_continuous(limits = c(2.5, 3.5),
+                     breaks = seq(from = 2.5, to=3.5, by=0.25))+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+#Creating plot for sample B1
+p2<-ggplot(samp, aes(x=est.x)) +
+  geom_histogram(aes(y=..density..), 
+                 bins=30,
+                 colour="darkorchid",
+                 fill="darkorchid",
+                 alpha=0.3)+
+  geom_vline(aes(xintercept=mean(est.x)),
+             color="snow", linetype="dashed", size=1) +
+  labs(x=bquote(hat(beta)[1]),
+       freq=F,
+       y=element_blank())+
+  theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+#Putting plots side by side
+grid.arrange(p1, p2, ncol=2)
+
+```
+
+### Question 1C - Describe your results. Why do you think you are getting results like this?
+My graphs show two different types of distributions. For $\hat{\beta}_0$ there is an extreme amount of variance. For $\hat{\beta}_1$ it has a normal distribution. 
+
+# **Question 2**
+```{r }
+gerber <- read.csv("~/PS4 - Assignment/gerber.csv", header=TRUE)
+gerber<-gerber%>%dplyr::rename(Voting=voting, Hawthorne=hawthorne, Duty=civicduty, Self=self, Neighbors=neighbors,Control=control)
+
+#Regressing all the treatment variables
+reg<-lm(formula=Voting~Hawthorne + Duty + Neighbors + Self + Control, data=gerber)
+#Finding the confidence intervals
+reg1<-confint(reg, level=0.95)
+reg<-summary(reg)
+#Creating a table with all the information from the regression model
+o<-data.frame(c("Intercept", "Hawthorne", "Duty", "Neighbors", "Self"))
+colnames(o)<-c("Predictors")
+t<-data.frame(c("0.296638", "0.025736", "0.017899", "0.081310", "0.048513"))
+colnames(t)<-c("Estimates")
+th<-data.frame(c("0.001061", "0.002601", "0.002600", "0.002601", "0.002600"))
+colnames(th)<-c("Standard Error")
+f<-data.frame(c("279.525", "9.896", "6.884","31.263", "18.657"))
+colnames(f)<-c("T-Value")
+fi<-data.frame(c("< 2e-16 ***","< 2e-16 ***", "5.85e-12 ***", "< 2e-16 ***", "< 2e-16 ***"))
+colnames(fi)<-c("P-Value")
+s<-data.frame(c("0.29455834 to 0.29871827","0.02063898 to 0.03083364", "0.01280279 to 0.02299590", "0.07621241 to 0.08640741", "0.04341664 to 0.05360974"))
+colnames(s)<-c("95% Confidence Interval")
+t<-cbind(o,t,th,f,fi,s)
+#Using kable to present the results
+kable(t, digits=0)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  column_spec(1, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(0, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(1:4, color="black")%>%
+  footnote(general=" * p<0.05, ** p<0.01, ***p<0.001",
+           footnote_as_chunk = T)
+```
+
+### Question 2A - Hypotheses 
+My alternative hypothesis is that the treatment variables increase the likelihood of voting (i.e., the slope does not equal 0). My null hypothesis is that the treatment variables do not increase the likelihood of voting (i.e., the slope equals 0). 
+
+### Question 2A - Briefly interpret substantive and statistical significance of the estimates
+Each of the variables conducted in this multivariate regression are binary (i.e., 1 is voted and 0 is not voted). The 'baseline' or intercept is the control variable at a mean value of 0.296638. All the independent variables have a p-value less than 0.05. Thus I can reject the null hypothesis with 95% confidence. In other words, the treatment variables are associated with an increase in voter turnout. To elaborate, the slope estimates suggest when subjects received any treatment (i.e., hawthorne, duty, neighbors, and self) it increased the likelihood that they would vote versus if they did not receive any treatment. The treatment with the largest slope estimate is the neighbors variable (i.e., the subjects neighbors would know whether he/she voted or not) at 0.081310. In layman terms, there was an 0.081310 increase in the probability that a subject would vote if he/she received the neighbours treatment in comparison to the control group.
+
+### Question 2A - Do you have a lot of confidence in these estimates? Why or why not?
+If all the OLS assumptions are fulfilled, yes, I am confident in these estimates because the standard errors and by extension the confidence intervals are very small. Essentially, the smaller the error the more confident I can be that the estimates reflect the true population parameter.
+
+### Question 2A - Discuss the plausibility of each of the regression assumptions required for causal statistical inference
+In this section I will list each of the OLS assumptions and indicate whether my model fulfills each of them.
+
+#### No Perfect Collinearity 
+```{r }
+#Running regression model
+reg<-lm(formula=Voting~Hawthorne + Duty + Neighbors + Self, data=gerber)
+#Running VIF test 
+car::vif(reg)
+#Creating table to present results
+o<-data.frame(c("Hawthorne", "Duty", "Neighbors", "Self"))
+colnames(o)<-c("Variables")
+t<-data.frame(c("1.066555", "1.066572", "1.066552", "1.066572"))
+colnames(t)<-c("Variance Inflation Factor Test")
+t<-cbind(o,t)
+kable(t, digits=0)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  column_spec(1, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(0, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(1:4, color="black")
+```
+
+This assumption asserts that the independent variables are not constant and that they are not correlated with one another. A way to test this assumption is the Variance Inflation Factor Test. Essentially, a score of 1 indicates no relationship between the predictor variables. As shown in the table all the independent variable scores are around 1. THe means that there is no multicolinearity.
+
+### Linearity in the Parameters 
+This assumptions posits that the parameter dependent variable and independent variable(s) have a linear relationship. My model only has dummy variables which suggests that the parameter formula is linear. Essentially, if there is a relationship, and X has a unit increase the Y value must increase because there is no other value it can take. Therefore, the relationship is linear. 
+
+### Random Sampling 
+This assumption is that each subject from the population had an equal chance of being selected (i.e., they are independently and identically distributed). According to the authors who collected the data, subjects were removed if they lived in a house with 3 or more voters, precinct with less than 100 voters, and if they participated previous experiments that exposed their voter history. The rest of the subjects in various precincts had an equal chance of being selected out of 369,211 registered voters. Additionally, the data is cross-sectional which contributes to not violating this assumption. In layman terms, the data is randomly sampled and is cross-sectional. Therefore, it is likely that this data does not violate the random sampling assumption.
+
+### Zero Conditional Mean
+This assumption refers to the errors of the model having a conditional mean of zero. In other words, the variance of the independent variables and the error term is zero. A way of not violating this assumption is if there was non-random assignment for the independent variables. As discussed before, there was random assignment and therefore the study does not violate the zero conditional mean assumption.
+
+### Constant Variance/Heteroskedasticity
+```{r }
+reg<-lm(formula=Voting~Hawthorne + Duty + Neighbors + Self + Control, data=gerber)
+#Running test for heteroskedasticity
+lmtest::bptest(reg) 
+#Presenting results of test
+o<-data.frame(c("Breusch-Pagan Test"))
+colnames(o)<-c("Test")
+t<-data.frame(c("< 2.2e-16"))
+colnames(t)<-c("P-Value")
+t<-cbind(o,t)
+kable(t, digits=0)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  column_spec(1, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(0, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(1:1, color="black")
+```
+
+The assumption of heteroskedasticity requires that the conditional variance of the error term is constant and does not vary as a function of the regressor X. A way to test this assumption is the Breusch-Pagan test. The results of the tests show a p-value less than 0.05, this indicates that the errors do have a constant variance. Thus, the OLS model biased. It should be noted that linear probability models all have issues of heteroskedasticity. 
+
+### Question 2B - Regression One  
+```{r }
+#Loading data set
+gerber <- read.csv("~/PS4 - Assignment/gerber.csv", header=TRUE)
+#Renaming variables
+gerber<-gerber%>%dplyr::rename(Voting=voting, Hawthorne=hawthorne, Duty=civicduty, Self=self, Neighbors=neighbors,Control=control)
+#Filtering subjects that either were in a control group or received the neighbours treatment
+gerber<-gerber%>%dplyr::filter(Control==1 | Neighbors==1)
+
+#Running the 1st regression
+reg1<-data.frame(summary(lm(formula=Voting~Neighbors + female + Control, data=gerber))$coefficients)
+reg1<-summary(reg1)
+#Presenting results
+o<-data.frame(c("Intercept", "Neighbours", "Sex"))
+colnames(o)<-c("Predictors")
+t<-data.frame(c("0.30286521", "0.08132394", "-0.01248023"))
+colnames(t)<-c("Estimates")
+th<-data.frame(c("0.001427690", "0.002586495", "0.001927062"))
+colnames(th)<-c("Standard Error")
+f<-data.frame(c("212.136507", "31.441758", "-6.476297"))
+colnames(f)<-c("T-Value")
+fi<-data.frame(c("0.000000e+00***","1.576683e-216***", "9.418957e-11***"))
+colnames(fi)<-c("P-Value")
+t<-cbind(o,t,th,f,fi)
+kable(t)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  column_spec(1, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(0, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(1:2, color="black")%>%
+  footnote(general="* p<0.05, ** p<0.01, ***p<0.001",
+           footnote_as_chunk = T)
+```
+
+### Question 2B - Regression Two
+```{r }
+#Running the 2nd regression
+reg2<-data.frame(summary(lm(formula=Voting~Neighbors + g2000 + Control, data=gerber))$coefficients)
+#Presenting results
+o<-data.frame(c("Intercept", "Neighbors", "Vote in 2000 General Election"))
+colnames(o)<-c("Predictors")
+t<-data.frame(c("0.21657592", "0.08147357", "0.094930697"))
+colnames(t)<-c("Estimates")
+th<-data.frame(c("0.002464246", "0.002579487", "0.002641951"))
+colnames(th)<-c("Standard Error")
+f<-data.frame(c("87.88730", "31.58518", "35.93204"))
+colnames(f)<-c("T-Value")
+fi<-data.frame(c("0.000000e+00***","1.743039e-218***", "5.914573e-282***"))
+colnames(fi)<-c("P-Value")
+t<-cbind(o,t,th,f,fi)
+kable(t)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  column_spec(1, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(0, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(1:3, color="black")%>%
+  footnote(general="* p<0.05, ** p<0.01, ***p<0.001",
+           footnote_as_chunk = T)
+```
+
+### Question 2B - Regression Three
+```{r }
+#Running the 3rd regression
+reg3<-data.frame(summary(lm(formula=Voting~Neighbors + g2002 + Control, data=gerber))$coefficients)
+#Presenting results in table
+o<-data.frame(c("Intercept", "Neighbors", "Vote in 2002 General Election"))
+colnames(o)<-c("Predictors")
+t<-data.frame(c("0.16555653", "0.08123798", "0.16165073"))
+colnames(t)<-c("Estimates")
+th<-data.frame(c("0.002236319", "0.002562297", "0.002437891"))
+colnames(th)<-c("Standard Error")
+f<-data.frame(c("74.03082", "31.70514", "66.30760"))
+colnames(f)<-c("T-Value")
+fi<-data.frame(c("0.000000e+00***","3.964782e-220***", "0.000000e+00***"))
+colnames(fi)<-c("P-Value")
+t<-cbind(o,t,th,f,fi)
+kable(t)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  column_spec(1, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(0, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(1:3, color="black")%>%
+  footnote(general="* p<0.05, ** p<0.01, ***p<0.001",
+           footnote_as_chunk = T)
+```
+
+### Question 2B - Regression Four
+```{r }
+#Running the 4th regression
+reg4<-data.frame(summary(lm(formula=Voting~Neighbors + p2000*g2000 + Control, data=gerber))$coefficients)
+#Presenting results in table
+o<-data.frame(c("Intercept", "Neighbors", "Vote in 2000 Primary Election", "Vote in 2000 General Election", "Interaction between Primary and General Election"))
+colnames(o)<-c("Predictors")
+t<-data.frame(c("0.20283961","0.08145814", "0.17960354", "0.07642903", "-0.06623627"))
+colnames(t)<-c("Estimates")
+th<-data.frame(c("0.002545384", "0.002563861", "0.009071600", "0.002794110", "0.009360050"))
+colnames(th)<-c("Standard Error")
+f<-data.frame(c("79.689208", "31.771671", "19.798442", "27.353626", "-7.076487"))
+colnames(f)<-c("T-Value")
+fi<-data.frame(c("0.000000e+00***","4.833830e-221***", "3.632439e-87***", "1.800126e-164***", "1.482756e-12***"))
+colnames(fi)<-c("P-Value")
+t<-cbind(o,t,th,f,fi)
+kable(t)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  column_spec(1, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(0, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(1:4, color="black")%>%
+  footnote(general="* p<0.05, ** p<0.01, ***p<0.001",
+           footnote_as_chunk = T)
+```
+
+### Question 2B - Regression Five
+```{r }
+#Running the 5th regression
+reg5<-data.frame(summary(lm(formula=Voting~Neighbors + p2002*g2002 + Control, data=gerber))$coefficients)
+#Presenting results in table
+o<-data.frame(c("Intercept", "Neighbors", "Vote in 2000 Primary Election", "Vote in 2000 General Election", "Interaction between Primary and General Election"))
+colnames(o)<-c("Predictors")
+t<-data.frame(c("0.14345208","0.08161565", "0.14883894", "0.12823634", "0.00648146"))
+colnames(t)<-c("Estimates")
+th<-data.frame(c("0.002395510","0.002539920", "0.006126964", "0.002747451","0.005341"))
+colnames(th)<-c("Standard Error")
+f<-data.frame(c("59.883739", "32.133161", "24.292445", "46.674656", "-3.738484"))
+colnames(f)<-c("T-Value")
+fi<-data.frame(c("0.000000e+00***","4.845319e-226***", "3.445456e-130***","0.000000e+00", "1.851785e-04***"))
+colnames(fi)<-c("P-Value")
+t<-cbind(o,t,th,f,fi)
+kable(t)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  column_spec(1, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(0, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(1:5, color="black")%>%
+  footnote(general="* p<0.05, ** p<0.01, *** p<0.001",
+           footnote_as_chunk = T)
+```
+
+### Question 2B - Do your estimates of the effect of the neighbors treatment change across your five regressions? Why or why not?
+Yes, as shown in all the tables the slope of the neighbor variable changed from 0.08132394, 0.08147357, 0.08123798, 0.08145814, and 0.081615651. $\hat{\beta}_1$ will change when adding a predictor variable if there is multicollinearity or if it is correlated with the outcome variable. Additionally, I used interaction effects in some of my models. These models suggest that the relationship between X and Y is impacted by a third variable. For example, I could theorize that the relationship between the amount of hours a student studies and performance is only significant if the subject got 8 hours or more of sleep. Thus, adding in an interaction effect impacts the slope estimate because it can alter the level of correlation between X and Y.
+
+# **Question 3**
+```{r }
+gerber <- read.csv("~/PS4 - Assignment/gerber.csv", header=TRUE)
+gerber<-gerber%>%dplyr::rename(Voting=voting, Hawthorne=hawthorne, Duty=civicduty, Self=self, Neighbors=neighbors,Control=control)
+gerber<-gerber%>%dplyr::filter(Control==1 | Neighbors==1)
+
+#Running regression with interaction effect
+reg<-data.frame(summary(lm(formula=Voting~Neighbors + Neighbors:female, data=gerber))$coefficients)
+
+#Calculating how the interaction impacts the probability of voting
+#Probability of subjects who are female and received treatment
+TF<-(reg$Estimate[1]+ reg$Estimate[2]) + reg$Estimate[3]
+#Probability of subjects who are female and who did not receive treatment
+NTF<-b0<-reg$Estimate[1]
+#Probability of subjects who are male and who did receive treatment
+TM<-reg$Estimate[1] + reg$Estimate[2]
+#Probability of subjects who are male and who did not receive treatment
+NTM<-b0
+
+#Average treatment effect for female
+F<-TF-NTF
+#Average treatment effect for female
+M<-TM-NTM
+
+#Inputting results in table
+x<-matrix(c(NTM, NTF, TM, TF), nrow=2, ncol=2, byrow=TRUE)
+colnames(x) <- c("Male", "Female")
+rownames(x) <- c("Non-Treatment", "Treatment")
+kable(x)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  column_spec(1, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(0, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(1:2, color="black")
+
+```
+
+### Question 3A - What is the average effect of treatment for males? For this model, what is the estimated average treatment effect for females?
+Based on my calculations, the average effect of treatment for males is 0.08790458 while the average effect of treatment for females is 0.07471698.
+
+### Question 3B
+```{r }
+#Doing the same thing as the previous question but adding in an extra interaction effect
+reg<-data.frame(summary(lm(formula=Voting~Neighbors*female, data=gerber))$coefficients)
+
+#Calculating probabilities
+TF<-(reg$Estimate[1] + reg$Estimate[2]) + reg$Estimate[3] + reg$Estimate[4]
+NTF<-reg$Estimate[1] + reg$Estimate[3]
+TM<-reg$Estimate[1] + reg$Estimate[2]
+NT_M<-b0<-reg$Estimate[1]
+
+#Calculating average effects
+F<-TF-NTF
+M<-TM-NTM
+
+x<-matrix(c(NTM, NTF, TM, TF), nrow=2, ncol=2, byrow=TRUE)
+colnames(x) <- c("Male", "Female")
+rownames(x) <- c("Non-Treatment", "Treatment")
+
+kable(x)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  column_spec(1, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(0, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(1:2, color="black")
+```
+
+### Question 3B - What is the average effect of treatment for males?
+The average effect of treatment for males is 0.08790458.
+
+### Question 3B - What is the average effect of treatment for females?
+The average effect of treatment for females is 08089951.
+
+### Question 3B - Comparing a) and b), which model do you like better and why? 
+The regression models essentially produced the same results. However, the average effect of treatment for females changed from 0.07471698 to 08089951. I prefer the second model because the colon removes the lower order terms. Thus the first model assumes that the intercept for both male and females is the exact same, which seems very unlikely. 
+
+### Question 3C
+
+${Y}={\beta}_0+{\beta}_1(Neighbors)+{\beta}_2(female)+{\beta}_3(female)(Neighbors)$
+
+### Analytical Equation for Females that Recieved Treatment
+
+${Y}={(\beta}_0+{\beta}_1(1)+{\beta}_2(1)+{\beta}_3(1)(1))-({\beta}_0+{\beta}_2(1))$
+
+${Y}={(\beta}_0+{\beta}_1+{\beta}_2+{\beta}_3)-({\beta}_0+{\beta}_2)$
+
+${Y}=(0.3027947+0.08174818-0.01233893-0.0008486718)-(0.3027947-0.01233893)$
+
+${Y}=0.3713553-0.2904558$
+
+${Y}=0.0808995$
+
+
+### Analytical Equation for Males that Recieved Treatment 
+
+${Y}={\beta}_0+{\beta}_1(1)+{\beta}_2(0)+{\beta}_3(0)(1)-{\beta}_0$
+
+${Y}={\beta}_1$
+
+${Y}=0.08174818$
+
+### Question 3D
+```{r }
+reg<-lm(formula=Voting~Neighbors* female, data=gerber)
+#Using VCOV function to extract the variance and covariance of betas
+b1<-vcov(reg)[2, 2]
+b2<-vcov(reg)[3,3]
+b3<-vcov(reg)[4, 4]
+c<-vcov(reg)[2,4]
+```
+
+$V[{\delta}{y}/{x}_1]=V[{\beta}_1]+ {X^2_2}V[{\beta}_3] + 2x_2Cov[{\beta}_1, {\beta}_3]$
+
+### Variance and Standard Error of the Analytical Equation for Females that Recieved Treatment 
+
+$V[{\delta}\hat{y}/{x}_1]=1.337671e-05$
+
+$SE=sqrt(1.337671e-05)$
+
+$SE=0.003657419$
+
+### Variance and Standard Error of the Analytical Equation for Males that Recieved Treatment 
+
+$V[{\delta}\hat{y}/{x}_1]=1.337671e-05+(1^2)(2.675994e-05)+2(1)(-1.337671e-05)$
+
+$V[{\delta}\hat{y}/{x}_1]=1.337671e-05+2.675994e-05-2.675342e-05$
+
+$V[{\delta}\hat{y}/{x}_1]=1.338323e-05$
+
+$SE=sqrt(1.338323e-05)$
+
+$SE=0.00365831$
+
+# **Question 4**
+```{r }
+#Creating variables that indicate the subjects age, and making a polynomial variable
+gerber<-gerber%>%
+  mutate(age = (2006 - yob))%>%
+  mutate(age.sq = (age^2))
+```
+
+### Question 4A - briefly interpret the conceptual meaning of the coefficients on age and age squared in such a regression.
+Theoretically, age impacts the likelihood of voting. It is common knowledge that those who are young tend not to vote. Thus, as the subject gets older the probability of voting should increase. The age squared variable will change the function into a polynomial. Polynomial functions are utilized to describe relationships that have rapid increases and/or declines. For example, a person's level of income rapidly increases between their 20's and 60's and then will rapidly decline when he/she retires. Therefore, the age squared variable would be used to show that younger people tend to not to vote, but once they reach middle age the likelihood increases rapidly, and then as the same people get very old there is a large decrease in the likelihood that the same subjects would vote.
+
+### Question 4B
+```{r }
+#Creating regression model
+reg<-summary(lm(formula=Voting~Neighbors + p2004 + age + age.sq, data=gerber))$coefficients
+#Putting information in table
+o<-data.frame(c("Intercept", "Neighbors", "Vote in 2004 Primary Election ", "Age", "Age Squared"))
+colnames(o)<-c("Predictors")
+t<-data.frame(c("-1.048e-01", "6.894e-02", "1.460e-01", "1.078e-02", "-6.780e-05"))
+colnames(t)<-c("Estimates")
+th<-data.frame(c("6.793e-03", "2.465e-03", "1.584e-03", "2.745e-04", "2.677e-06"))
+colnames(th)<-c("Standard Error")
+f<-data.frame(c("-15.43", "27.97", "92.15", "39.27", "-25.33"))
+colnames(f)<-c("T-Value")
+fi<-data.frame(c("< 2e-16 ***","< 2e-16 ***", "< 2e-16 ***", "< 2e-16 ***", "< 2e-16 ***"))
+colnames(fi)<-c("P-Value")
+t<-cbind(o,t,th,f,fi)
+kable(t)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  column_spec(1, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(0, bold=TRUE, background="darkmagenta", color="black")%>%
+  row_spec(1:3, color="black")%>%
+  footnote(general="* p<0.05, ** p<0.01, ***p<0.001",
+           footnote_as_chunk = T)
+```
+
+### Question 4C
+```{r}
+gerber<-gerber%>%rename(Age=age)
+#Creating regression model with polynomial effects
+m<-lm(formula=Voting~Neighbors + p2004 + Age + age.sq, data=gerber)
+
+#Creating datat set to calucate predictions
+df<-data.frame(Age=c(seq(20, 80, by=10)))
+df$age.sq<-df$Age^2
+df$Neighbors<-1
+df$p2004<-1
+
+#Selecting coefficents
+int<-(m)$coef[1]
+neigh<-(m)$coef[2]
+p<-(m)$coef[3]
+a<-(m)$coef[4]
+a.s<-(m)$coef[5]
+
+d_neigh<-df$Neighbors
+d_p<-df$p2004
+d_a<-df$Age
+d_a.s<-df$age.sq
+
+#Calculating probabilities
+df$Prediction<-c(int+neigh*d_neigh+p*d_p+a*d_a+a.s*d_a.s)
+
+#Creating plot
+df %>% 
+  ggplot(aes(x = Age, y = Prediction)) +
+  geom_line(size=1, colour="darkorchid") +
+  theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+```
+
+### Question 4D and 4E
+```{r } 
+b<-coef(m)
+#Taking derivative 
+df$Marginal.Effects<-b[4]+2*(b[5]*df$Age)
+#Calculating standard error for confidence intervals
+df$Standard.Error<-sqrt(vcov(m)[4,4]+4*((df$age.sq)*vcov(m)[5,5])+ 4*df$Age*vcov(m)[4,5])
+df$Confidence.Interval<-qt(0.975, m$df)
+df$Y.Minimum<- df$Marginal.Effects- df$Confidence.Interval * df$Standard.Error
+df$Y.Maximum<-df$Marginal.Effects+df$Confidence.Interval*df$Standard.Error
+
+#Creating marginal effects plot
+ggplot(aes(x=Age, y=Marginal.Effects), data=df)+
+  geom_ribbon(aes(ymin=Y.Minimum, ymax=Y.Maximum), alpha=0.5, fill="darkorchid")+
+  geom_line(size=1, color="darkorchid")+
+  theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+```
+
+This graph is displaying the effect of changing from voters to none voters at different ages (i.e., 20, 30, 40, 50, 60, 70, and 80). The effects of age on voting behaviour has a negative relationship. Essentially, the effects that age has on voting behaviour tends to decrease with age.
