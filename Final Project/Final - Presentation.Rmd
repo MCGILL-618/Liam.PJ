@@ -1,0 +1,454 @@
+---
+title: Examing the Relationship Between Conflict and State-Led Mass Killings
+author:
+  - name: Liam Palcu-Johnston
+    affil: 
+affiliation:
+  - num: 
+    address: Department of Political Science, McGill University
+column_numbers: 3
+output: 
+  posterdown::posterdown_html:
+    self_contained: false
+bibliography: packages.bib
+---
+<style type="text/css">
+
+body{ /* Normal  */
+      font-size: 30px;
+}
+</style>
+---
+
+```{r setup, include=FALSE}
+#Load Packages
+pacman::p_load(tidyverse, kableExtra,mfx, sjPlot, ggplot2, jtools,car, blorr, DescTools, MASS, aod, oddsratio, sjstats, foreign, bestNormalize, lmtest, sandwich, estimatr, haven, cowplot, kableExtra, ggpubr, ggdark, qwraps2, plotly, ggeffects, psych, MASS, reshape2, broom, pscl, DAMisc, gridExtra, sjlabelled, clusrank, estimatr)
+knitr::write_bib(c('posterdown', 'rmarkdown','pagedown'), 'packages.bib')
+#Load Datasets
+mk<-read_dta("~/Final Project Data set/Varieties_JPR_Data.dta")
+mk<-remove_all_labels(mk)
+ew<- read.csv("~/Master's Political Science - Fall 2020/Political Science 618/Political Science 618 Assignments/Final Paper/earlywarningproject-statrisk-replication-master/data.out/ewp.statrisk.data.transformed.csv")
+tk<-read.csv("~/Final Project Data set/tmk_events_release.csv")
+u<- read.csv("C:/Users/palcu/Downloads/ucdp-prio-acd-201-csv (1)/ucdp-prio-acd-201.csv")
+
+##########################
+#Merge and Alter datasets#
+##########################
+#Altering MK dataset
+
+#Altering EW dataset
+ew<-ew%>%select(country, year, wdi.trade.ln, wdi.popsize.ln, pol.polity, elc.eliti, imf.gdppc,elf.ethnic)
+ew$pol.polity[ew$pol.polity<=5] <-0
+ew$pol.polity[ew$pol.polity >=6]<-1
+ew<-ew%>%mutate(gdp=log(imf.gdppc))
+
+#Altering U Dataset
+u<-u%>%select(side_a, side_b, year,type_of_conflict, intensity_level, incompatibility, 'gwno_a')
+
+
+u$type_of_conflict[u$type_of_conflict==1] <- 1
+u$type_of_conflict[u$type_of_conflict==2] <- 2
+u$type_of_conflict[u$type_of_conflict==3] <- 3
+u$type_of_conflict[u$type_of_conflict==4] <- 3 
+
+u$intensity_level[u$intensity_level==1] <- 0
+u$intensity_level[u$intensity_level==2] <- 1
+
+
+#Altering TK data set
+tk<-tk%>%select(country, year, pl.ccode, pl.gwn,  deaths.est, deaths.est.crit)
+tk<-tk%>%mutate(deaths=log(deaths.est))
+
+#Creating alternative dataset for analysis later
+mk3<-merge(u, tk, by.x=c('gwno_a', 'year'), by.y=c('pl.ccode', 'year'))
+mk3<-distinct(mk3)
+mk3$side_a<-str_to_lower(mk3$side_a)
+mk3$side_a<-str_remove(mk3$side_a, "government of")
+mk3$side_a<-str_replace(mk3$side_a, 'russia (soviet union)', 'soviet union')
+mk3$side_a<-str_trim(mk3$side_a, side = c('both'))
+mk3$side_a<-dplyr::recode(mk3$side_a,"bosnia-herzegovina" = 'bh',"cambodia (kampuchea)" = "cambodia", "myanmar (burma)"="myanmar", "dr congo (zaire)" = "drc", "serbia (yugoslavia)" ="yugoslavia", "russia (soviet union)" = "soviet union")
+
+ew$country<-str_remove(ew$country, "Government of")
+ew$country<-str_to_lower(ew$country)
+ew$country<-str_trim(ew$country, side = c('both'))
+ew$country<-dplyr::recode(ew$country,"bosnia and herzegovina" = 'bh', "congo-brazzaville" = "congo", "congo-kinshasa"="drc", "federal republic of yugoslavia" = "yugoslavia")
+
+mk3<-merge(mk3, ew, by.x=c('side_a', 'year'), by.y=c('country', 'year'))
+mk3<-distinct(mk3)
+
+mk3<-mk3%>%select(side_a, side_b, year,type_of_conflict, intensity_level, incompatibility, 'gwno_a', deaths, deaths.est, wdi.trade.ln, wdi.popsize.ln, pol.polity, elc.eliti, gdp, elf.ethnic)
+
+mk3$type_of_conflict[mk3$type_of_conflict==2] <- 0
+mk3$type_of_conflict[mk3$type_of_conflict==3] <- 1
+
+#############
+#Replication#
+#############
+###########
+#MODEL ONE#
+###########
+m1<-glm(start_specific~irregular+gwf_dem+ETHPOL+tradeopeni+exclusion+rgdpch_PWT+intensity+territorial+pop_PWT, family="binomial", data=mk)
+m1c<-tidy(coeftest(m1, vcov=vcovCL(m1, cluster=~ccode)), conf.int = 0.95)
+#Odds Ratio
+m1o<-m1c%>%mutate('Odds Ratio' = exp(estimate), Lower = exp(conf.low), Upper= exp(conf.high))
+#collecting information for table
+m1d<-m1o%>%select(term, estimate, std.error, p.value, 'Odds Ratio', Lower, Upper)
+colnames(m1d)<-c("Variable", "Coefficent", "Standard Error", "P-Value", "Odds Ratio", "Lower", "Upper")
+#Rename Variables
+m1d$Variable<-dplyr::recode(m1d$Variable,'(Intercept)'= "Intercept", 'irregular'= "Guerrilla Warfare", "gwf_dem" = "Democracy", "ETHPOL" = "Ethnic Polarization", "tradeopeni" = "Trade Openness", "exclusion" = "Exclusionary Ideology", "rgdpch_PWT" = "Development", 
+                            "intensity"="Conflict intensity", "territorial" = "Territorial Motive",'pop_PWT'= "Population")
+m1d[,-1] <-round(m1d[,-1],3)
+
+###########
+#MODEL TWO#
+###########
+m2<-glm(start_specific~irregular+ SNC+gwf_dem+ETHPOL+tradeopeni+exclusion+rgdpch_PWT+intensity+territorial+pop_PWT, family="binomial", data=mk)
+m2c<-tidy(coeftest(m2, vcov=vcovCL(m2, cluster=~ccode)), conf.int = 0.95)
+#Odds Ratio
+m2o<-m2c%>%mutate('Odds Ratio' = exp(estimate), Lower = exp(conf.low), Upper= exp(conf.high))
+#Gathering information for table
+m2d<-m2o%>%select(term, estimate, std.error, p.value, 'Odds Ratio',Lower, Upper)
+colnames(m2d)<-c("Variable", "Coefficent", "Standard Error","P-Value", "Odds Ratio", "Lower", "Upper") 
+m2d$Variable<-dplyr::recode(m2d$Variable,"(Intercept)"= "Intercept", 'irregular'= "Guerrilla Warfare", "SNC" = "SNC Warfare", "gwf_dem" = "Democracy", "ETHPOL" = "Ethnic Polarization", "tradeopeni" = "Trade Openness", "exclusion" = "Exclusionary Ideology", "rgdpch_PWT" = "Development",   "intensity"="Conflict intensity", "territorial" = "Territorial Motive",'pop_PWT'= "Population")
+m2d[,-1] <-round(m2d[,-1],3)
+
+#############
+#MODEL THREE#
+#############
+m3<-glm(start_specific~irregular+conventional+gwf_dem+ETHPOL+tradeopeni+exclusion+rgdpch_PWT+intensity+territorial+pop_PWT, family="binomial", data=mk)
+m3c<-tidy(coeftest(m3, vcov=vcovCL(m3, cluster=~ccode)), conf.int = 0.95)
+#Odds Ratio
+m3o<-m3c%>%mutate('Odds Ratio' = exp(estimate), Lower = exp(conf.low), Upper= exp(conf.high))
+#Gathering information for table
+m3d<-m3o%>%select(term, estimate, std.error, p.value,'Odds Ratio', Lower, Upper)
+colnames(m3d)<-c("Variable", "Coefficent", "Standard Error","P-Value", "Odds Ratio", "Lower", "Upper")
+m3d$Variable<-dplyr::recode(m3d$Variable,'(Intercept)'= "Intercept", 'irregular'= "Guerrilla Warfare", "conventional" = "Conventional Warfare", "gwf_dem" = "Democracy", "ETHPOL" = "Ethnic Polarization", "tradeopeni" = "Trade Openness", "exclusion" = "Exclusionary Ideology", "rgdpch_PWT" = "Development",   "intensity"="Conflict intensity", "territorial" = "Territorial Motive",'pop_PWT'= "Population")
+m3d[,-1] <-round(m3d[,-1],3)
+
+#######################
+#MODEL FIT CALCULATION#
+#######################
+#Calculate loglikelihood 
+llm1<-logLik(m1)
+llm2<-logLik(m2)
+llm3<-logLik(m3)
+
+#Calculate psuedo - R^2
+m1pr2 <- 1 - (m1$deviance/m1$null.deviance)
+m2pr2 <- 1 - (m2$deviance/m1$null.deviance)
+m3pr2 <- 1 - (m3$deviance/m1$null.deviance)
+
+#Calculate AIC and BIC
+Am1<-AIC(m1)
+Bm1<-BIC(m1)
+Am2<-AIC(m2)
+Bm2<-BIC(m2) 
+Am3<-AIC(m3)
+Bm3<-BIC(m3)
+```
+
+# Overview
+This presentation explores how intrastate conflict affects instances of state-led mass killings/SLMKs (i.e., intentional killing of a 1000 or more non-combatants who are a part of socioeconomic group). I build on Daniel Kcramric's research which challenges the conventional view that mass killings/MKs is a rational strategy utilized by states to eliminate civilians who may be helping insurgents. He counters this position by asserting that if, indeed, states are rational actors it is unlikely that MKs will occur during rebel war because it is more effective to win over the hearts and minds of civilians rather than eliminate them (SLMKs tend to increase public support of the rebels which gives them more power). He hypothesizes that conventional warfare (i.e., violent dispute between two or more states) is the most likely type of war to increase instances of MKs. I analyze his three models which test whether guerrilla, SNC (i.e., conflict where rebels are as strong or stronger than the state), or conventional warfare is most likely to provoke instances of MKs. Furthermore, I create a data set that estimates the number of civilian deaths per MK episode to provide more insight into the potential relationship between internal conflict and mass violence. Based on my findings, I conclude that the intensity of a conflict and the ideology of the perpetrators seem to have a stronger association with SLMKs than the association between type of war/conflict and SLMKs.
+
+# Methods
+* Analyze two data sets: 
+ 1) Documents information on 648 observations of guerrilla, SNC, and conventional warfare between 1946 and 2008 
+    + Tests three models where each type of war is a dummy variable 
+    + He controls for territorial motive, ethnic polarization, democracy, trade openness, exclusionary ideology, country development, conflict intensity, and population
+ 2) Combination of three data sets show 283 observations of rebel and conventional warfare between 1947 and 2014 
+  + The data used in this analysis include the Early Warning Project’s Episodes of State-Led Mass Killing, Targeted Mass Killing, and UCDP/PRIO Armed Conflict Data sets
+  + Utilize the same or similar independent variables as Kcramric 
+  + War type variable is binary, where 1 is a rebel conflict and 0 is a conventional conflict 
+  + The intensity variable is binary, where 1 suggests a 1000 or more combatant deaths and 0 indicates between 0 and 999 combatant deaths 
+  + Exclusionary ideology variable is binary, where 1 suggest that the ruling elites of the state espouse an exclusionary ideology and 0 means that they do not
+* Conduct both logit and linear regression with clustered standard errors
+  + Present odds ratios, predicted probabilities, and predicted values 
+* variables that were uninteresting were not shown in presentation 
+
+# Results - Odds Ratios for First Analysis
+```{r echo = FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=8}
+#############
+#ODDS RATIOS#
+#############
+#MODEL ONE# 
+prob1<-mk%>% select(start_specific, irregular,gwf_dem, ETHPOL,tradeopeni,exclusion,rgdpch_PWT,intensity,territorial,pop_PWT)
+colnames(prob1)<-c( "start_specific", "Guerrila Warfare", "Democracy", "Ethnic Polarization","Trade Openness",
+                  "Exclusionary Ideology", "Development","Conflict Intensity", "Territorial Motive",
+                  "Population")
+prob1<-glm(start_specific~. ,family="binomial", data=prob1)
+
+set_theme(
+  geom.outline.color = "black", 
+  geom.outline.size = 1, 
+  geom.label.size = 2,
+  geom.label.color = "black",
+  title.color = "black", 
+  title.size = 1, 
+  axis.textcolor = "black", 
+  base =  theme_classic(),
+  axis.tickslen = 0,
+  axis.linecolor = "black",
+  axis.title.x ="black"
+)
+or1<-plot_model(prob1, vline.color = "black",terms=c("Guerrila Warfare","Ethnic Polarization", "Exclusionary Ideology", "Conflict Intensity"),
+           title = "Model 1",
+           show.values = TRUE, value.offset = .3,
+               vcov.fun="vcovCL",
+               vcov.type='HC1',
+               vcov.args=list(cluster=mk$ccode))
+
+
+
+#MODEL TWO#
+prob2<-mk%>% select(start_specific, irregular, SNC, gwf_dem, ETHPOL,tradeopeni,exclusion,rgdpch_PWT,intensity,territorial,pop_PWT)
+colnames(prob2)<-c( "start_specific", "Guerrila Warfare","SNC Warfare",  "Democracy", "Ethnic Polarization","Trade Openness", "Exclusionary Ideology", "Development","Conflict Intensity", "Territorial Motive",
+                  "Population")
+prob2<-glm(start_specific~. ,family="binomial", data=prob2)
+
+set_theme(
+  geom.outline.color = "black", 
+  geom.outline.size = 1, 
+  geom.label.size = 2,
+  geom.label.color = "black",
+  title.color = "black", 
+  title.size = 1, 
+  axis.textcolor = "black", 
+  base =  theme_classic(),
+  axis.tickslen = 0,
+  axis.linecolor = "black",
+  axis.title.x ="black"
+)
+or2<-plot_model(prob2, terms=c("Guerrila Warfare", "SNC Warfare", "Ethnic Polarization", "Exclusionary Ideology", "Conflict Intensity"),
+                vline.color = "black",
+                 title = "Model 2",
+                show.values = TRUE, value.offset = .3,
+                vcov.fun="vcovCL",
+                vcov.type='HC1',
+                vcov.args=list(cluster=mk$ccode))
+#MODEL 3#
+prob3<-mk%>% select(start_specific, irregular, conventional, gwf_dem, ETHPOL,tradeopeni,exclusion,rgdpch_PWT,intensity,territorial,pop_PWT)
+colnames(prob3)<-c( "start_specific", "Guerrila Warfare","Conventional Warfare",  "Democracy", "Ethnic Polarization","Trade Openness", "Exclusionary Ideology", "Development","Conflict Intensity", "Territorial Motive",
+                  "Population")
+prob3<-glm(start_specific~. ,family="binomial", data=prob3)
+
+set_theme(
+  geom.outline.color = "black", 
+  geom.outline.size = 1, 
+  geom.label.size = 2,
+  geom.label.color = "black",
+  title.color = "black", 
+  title.size = 1, 
+  axis.textcolor = "black", 
+  base =  theme_classic(),
+  axis.tickslen = 0,
+  axis.linecolor = "black",
+  axis.title.x ="black"
+)
+or3<-plot_model(prob3,terms=c("Guerrila Warfare", "Conventional Warfare", "Ethnic Polarization", "Exclusionary Ideology", "Conflict Intensity"),
+                vline.color = "black",
+                title = "Model 3",
+                show.values = TRUE, value.offset = .3,
+                vcov.fun="vcovCL",
+                vcov.type='HC1',
+                vcov.args=list(cluster=mk$ccode))
+
+grid.arrange(or1, or2, or3, ncol=2)
+
+#Calulating percent change of odds
+gwpro1<-(1 - exp(m1d$Coefficent[2]))*100
+gwpro2<-(1 - exp(m2d$Coefficent[2]))*100
+gwpro3<-(1 - exp(m3d$Coefficent[2]))*100
+sncpro2<-(1 - exp(m2d$Coefficent[3]))*100
+conpro3<-(1 - exp(m3d$Coefficent[3]))*100
+```
+
+* All the type of war variables in each model are statistically significant (i.e., P-Value < 0.05)
+* Results suggest that in each model the odds of MK decrease by 63%, 85%, and 70% when there is guerrilla war versus when there is not 
+  +  There is a negative association between guerrilla warfare and SLMKs
+* Model 2 shows that when there is SNC warfare it is 2.4 times more likely that MKs will occur versus when there is not
+  + This indicates that state vulnerability or rebel strength may have strong association with SLMKs
+* Model 3 shows that there is a significant negative relationship between conventional warfare and MKs
+ + the odds of MK decrease during conventional wars by 58%
+* The results support the position that guerrilla warfare does not increase the likelihood of MK but refutes Kcramric's hypothesis that conventional warfare is positively associated with mass violence
+ 
+# Results - Predicted Probabilities for First Analysis
+```{r  echo = FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=8}
+#############################
+#Predicted Probability Plots#
+#############################
+#Model 1- Predicted Probability
+m1<-glm(start_specific~factor(irregular)+gwf_dem+ETHPOL+tradeopeni+exclusion+rgdpch_PWT+intensity+territorial+pop_PWT, family="binomial", data=mk)
+pp1<-ggpredict(m1,  terms=c('irregular', 'gwf_dem [0]', 'intensity [2]', 'exclusion [1]'), ci.lvl = 0.95,
+             typical="median",
+             vcov.fun="vcovCL",
+             vcov.type='HC1',
+             vcov.args=list(cluster=mk$ccode))
+
+pp1<-ggplot(pp1, aes(x = x, y = predicted))+
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high)) +
+  geom_point(size = 3)+
+labs(y="Predicted Probabilities", x="Geurrilla")
+
+#Model 2 - Predicted Probability
+m2<-glm(start_specific~irregular+factor(SNC)+gwf_dem+ETHPOL+tradeopeni+exclusion+rgdpch_PWT+intensity+territorial+pop_PWT, family="binomial", data=mk)
+
+pp2<-ggpredict(m2,  terms=c('SNC' , 'exclusion [1]', 'intensity [2]', 'irregular [0]'), ci.level=0.95, typical='median',
+          vcov.fun="vcovCL",
+          vcov.type='HC1',
+          vcov.args=list(cluster=mk$ccode))
+pp2<-ggplot(pp2, aes(x = x, y = predicted))+
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high)) +
+  geom_point(size = 3)+
+  labs(x="SNC", y=" ")
+
+#Model 3 - Predicted Probability
+m3<-glm(start_specific~irregular+factor(conventional)+gwf_dem+ETHPOL+tradeopeni+exclusion+rgdpch_PWT+intensity+territorial+pop_PWT, family="binomial", data=mk)
+
+pp3<-ggpredict(m3,  terms=c('conventional' ,'exclusion [0]', 'intensity [2]', 'irregular [0]'), ci.level=0.95, typical='median',
+          vcov.fun="vcovCL",
+          vcov.type='HC1',
+          vcov.args=list(cluster=mk$ccode))
+pp3<-ggplot(pp3, aes(x = x, y = predicted))+
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high)) +
+  geom_point(size = 3)+
+  labs(x="Conventional", y=" ")
+
+
+grid.arrange(pp1, pp2, pp3, ncol=3, bottom=("Guerrila, SNC, and Conventional Warfare"))
+```
+
+
+* In the analysis I adjust for for type of war, government structure, conflict intensity, exclusive ideology, trade openness, GDP,ethnic polarization, territorial motive and population 
+* 0 represents no war and 1 indicates war 
+* Model 1 suggests when there is no guerrilla warfare, the probability of a MK is 25% but where there is guerrilla warfare the probability of a MK is 9%
+* Model 2 shows that the probability of MKs increase by 19% from when there is not a SNC war versus when there is 
+* Model 3 indicates that the probability of MK decreases when there is conventional warfare (i.e., changes from 23% to 11%)
+* Difficult to be confident about the results due to the large standard errors and, by extension, the confidence intervals 
+  + This seems largely due to the small amount of instances of MKs in that data set (i.e., 41 out of 648)
+  + The preciseness of the estimates are questionable
+  
+```{r  include = FALSE, message=FALSE, warning=FALSE}
+#################
+#GOODNESS OF FIT#
+#################
+null <- glm(start_specific~ 1, data = mk, family = binomial(link = logit))
+lln<-logLik(null)
+
+#G Squared 
+G1 <- llm1 - lln
+G2 <- llm2 - lln
+G3 <- llm3 - lln
+R1<- pchisq(G1, df = 9, lower.tail = FALSE)
+R2<- pchisq(G2, df = 10, lower.tail = FALSE)
+R3<-pchisq(G3, df = 10, lower.tail = FALSE)
+
+#F-Test
+ft1<-anova(m1, m2, test = "Chisq")
+ft2<-anova(m1, m3, test = "Chisq")
+
+#percent predicted correctly 
+nm<-hitmiss(null)
+m1pp<-hitmiss(m1)
+m2pp<-hitmiss(m2)
+m3pp<-hitmiss(m3)
+```
+
+# Results - Table of Results for Second Analysis
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+############################
+#Multiple Linear Regression#
+############################
+m1<-lm(deaths~type_of_conflict +pol.polity + intensity_level + incompatibility + wdi.trade.ln + wdi.popsize.ln + elc.eliti + gdp + elf.ethnic, data=mk3)
+m1c<-tidy(coeftest(m1, vcov=vcovCL(m1, cluster=~gwno_a)))%>%data.frame()
+m1c[,-1] <-round(m1c[,-1],2)
+#Table
+m1c<-m1c%>%select(term, estimate, std.error, statistic, p.value)
+colnames(m1c)<-c("Variable", "Coefficent", "Standard Error", "T-Statistic","P-Value")
+m1c$Variable<-dplyr::recode(m1c$Variable,'(Intercept)'= "Intercept",
+                            'type_of_conflict'= "Rebel Warfare",
+                            "pol.polity" = "Democracy",
+                            "intensity_level"="Conflict Intensity",
+                            "incompatibility" = "Territorial Motive",
+                            "wdi.trade.ln" = "Trade Openness",
+                            "wdi.popsize.ln" = "Population",
+                            "elc.eliti"="Exclusionary Ideology",
+                            "gdp" = "Development",
+                           "elf.ethnic"= "Ethnic Fractionalization",
+                           )
+
+
+m1c%>% kbl(caption = "Examining Conflict's Impact on Mass Killing") %>% 
+  kable_classic(full_width = F, html_font = "Cambria")%>%
+  footnote(general="Number of Observations = 283; Adjusted-R squared = 0.433",
+           general_title="Note:",
+           footnote_as_chunk = T)
+```
+
+* Important information from this table is that rebel warfare does not have a statistically significant relationship with MK
+  + This suggest that type of war may not impact the likelihood of MK
+* Both conflict intensity (i.e., whether the conflict had over 1000 battle deaths) and exclusionary ideology have a statistically significant relationship
+  + Both variables have a positive correlation
+  + When the conflict is intense it increases the log number of deaths by 0.81
+  + When there is an exclusionary ideology it increases the log number of deaths by 1.08
+ 
+# Results - Predicted Value of Logged Deaths for Second Analysis
+```{r echo = FALSE, message=FALSE, warning=FALSE, fig.width=14, fig.height=10} 
+p1<-lm(deaths~factor(type_of_conflict) + pol.polity + intensity_level + incompatibility + wdi.trade.ln + wdi.popsize.ln + elc.eliti + gdp + elf.ethnic, data=mk3)
+
+p2<-lm(deaths~factor(type_of_conflict) + pol.polity + intensity_level + wdi.trade.ln + wdi.popsize.ln + elc.eliti + gdp + elf.ethnic, data=mk3)
+
+pv1<- ggpredict(p1,  terms=c("type_of_conflict", "intensity_level", 'elc.eliti[1]', 'pol.polity [0]'), ci.level=0.95, typical='median',
+          vcov.fun="vcovCL",
+          vcov.type='HC1',
+          vcov.args=list(cluster=mk3$gwn_a))%>%plot()+
+  labs(
+    x = " ", 
+    y = "Logged Number of Deaths", 
+    colour = "Conflict Intensity", 
+    title= " "
+  )+
+    theme( panel.grid  = element_blank())+
+   font("xy.title", colour = "black")+
+   font("xy.text", color="black")
+
+
+pv2<-ggpredict(p2,  terms=c("type_of_conflict",'elc.eliti', 'pol.polity [0]', 'intensity_level[1]'), 
+               ci.level=0.95, typical='median',
+          vcov.fun="vcovCL",
+          vcov.type='HC1',
+          vcov.args=list(cluster=mk3$gwn_a)) %>%plot()+
+  labs(
+    x = " ", 
+    y = " ", 
+    colour = "Exclusionary Ideology", 
+    title= " "
+  )+
+    theme( panel.grid  = element_blank())+
+   font("xy.title", colour = "black")+
+   font("xy.text", color="black")                 
+grid.arrange(pv1, pv2, ncol=2, bottom = "Rebel Warfare")
+
+```
+
+* The plots display the predicted number of deaths for type of war
+  + The first plot shows how the level of intensity impacts the number of civilian deaths
+  + The second plots highlights how exclusionary ideology effects the number of civilian deaths 
+* For the first plot, regardless of type of conflict, the level of intensity increases the severity of mass violence
+  + When a conflict does not involve rebels, the number of non-combatant deaths increase from 1826.214 to 4064.313 when the the conflict intensity increases
+* For the second plot, exclusionary ideology also seems to have a substantial impact on MK deaths
+  + When there is no rebel warfare and the state leader does not hold an exclusionary ideology the predicted number of deaths is 1394.094 
+  + When there is no rebel warfare and the state leader does hold an exclusionary ideology the predicted number of death increases to 4105.16
+
+# Discussion 
+The major implications of my results is that they contradict the conventional argument that rebel warfare has a significant impact on the likelihood of MK. The first analysis noted that when rebels are equally or more strong than the state then a MK is likely. The second analysis indicates that rebel warfare has a statistically insignificant relationship with MK. However, conflict intensity (in addition to exclusionary ideology) seems to motivate states to use mass violence as a tactic against their opposition. Thus, further research could explore how an opposition's strength and state ideology effect instances of MKs. Additionally, conducting this future analysis on a data set with a large number of cases would be necessary to counter the potential issues of over-fitting and the impreciseness of estimates. 
+
+# References
+
+Butcher C G., Muchlinski D., Nanlohy S., & Sowmya A. (2020). Introducing the Targeted Mass Killing Data Set for the Study and Forecasting of Mass Atrocities. Journal of Conflict Resolution. 64(8), 1524-1547. 
+
+Gleditsch, N, P., Wallensteen, P., Eriksson, M., Sollenberg M., & Strand H. (2002) Armed Conflict 1946–2001: A New Dataset. Journal of Peace Research, 39(5).
+
+Krcmaric, D. (2017). Varieties of civil War and Mass Killing: Reassessing the Relationship Between Guerrilla Warfare and Civilian Victimization. Journal of Peace Research, 55(1), 18-31. 
+
+Ulfelder, J. (2013). A Multimodel Ensemble to Forecast Onsets of State. Social Science Research Network, pp. 1-23.
+
