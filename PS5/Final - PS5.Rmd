@@ -1,0 +1,505 @@
+---
+title: "Problem Set 5"
+author: "Liam Palcu-Johnston"
+subtitle: "McGill University"
+date: "December 7, 2020"
+output:
+  prettydoc::html_pretty:
+    theme: architect
+---
+```{r setup}
+rm(list=ls(all=TRUE))
+pacman::p_load(tidyverse, ggplot2,gridExtra,plotly,moments,QuantPsyc,psych,lmtest, sandwich, ggdark, prettydoc,  ggpubr, ggstance, ggthemes, kableExtra,sjPlot, estimatr, prettydoc, olsrr, modelsummary, tidyverse, kableExtra, data.table, ggplot2, ggdark, prettydoc, Hmisc, pastecs, qwraps2, ggpubr, numbers, car, tools, viridis, plotly, sjPlot, sjmisc, sjlabelled, jtools, ggstance, ggthemes, plotly, gridExtra, MASS, pixiedust)
+##################################
+#Creating Datasets for Question 1#
+##################################
+b_0 <- 12500
+b_1 <- 2000
+b_2 <- 1000
+set.seed(888)
+b_1_random <- rnorm(1000, 1, 0.6)
+b_2_random <- rnorm(1000, 1, 0.6)
+set.seed(1010)
+income <- data.frame(education_years = rnorm(1000, 13, 3))
+income <- income %>% mutate(
+  innate_ability = education_years/3 + rnorm(1000, 0, 5),
+  income = b_0 + b_1*b_1_random*education_years +
+    b_2*b_2_random*innate_ability)
+n<-1000
+s<-data.frame(sample=1:n, b0=NA, b1=NA)
+s2<-data.frame(sample=1:n, b0=NA, b1=NA)
+################################
+#Loading Dataset for Question 2#
+################################
+cf<-read.csv("~/GitHub/student_materials_2020/problem_sets/ps5/congress_fundraising.csv")
+#####################################
+#Loading Function for Influence Plot#
+#####################################
+
+plotInfluence <- function (model, fill="deepskyblue", 
+                           outline="blue",size=30) {
+  require(ggplot2)
+  if(!inherits(model, "lm")) 
+    stop("You need to supply an lm object.")
+  df<-data.frame(Residual=rstudent(model), 
+                 Leverage=hatvalues(model), 
+                 Cooks=cooks.distance(model), 
+                 Observation=names(hatvalues(model)), 
+                 stringsAsFactors=FALSE)
+  myxint<-c(2*mean(df$Leverage), 3*mean(df$Leverage))
+  inds<-intersect(which(abs(df$Residual) < 2), 
+                  which( df$Leverage < myxint[1]))
+  if(length(inds) > 0) df$Observation[inds]<-""
+  ggplot(df, aes_string(x='Leverage', y='Residual', 
+                        size='Cooks', label='Observation'), 
+         legend=FALSE) +
+    geom_point(colour=outline, fill=fill, shape=21) + 
+    scale_size_area(max_size=size) + 
+    theme_solarized(base_size=16, light = FALSE)+
+    geom_text(size=4, color="snow") + 
+    geom_hline(yintercept=c(2,-2), color="snow", linetype="dashed") + 
+    geom_vline(xintercept=myxint, color="snow", linetype="dashed") + 
+    ylab("Studentized Residuals") + 
+    xlab("Hat-Values") + labs(size="Cook's distance") + 
+    font("title", size = 14, colour = "snow")+
+    font("xy.title", size = 12, colour = "snow")+
+    font("xy.text", color="snow")
+}
+```
+
+# **Question 1**
+## Question 1A - explain what it means for an estimate to be biased
+A biased estimate is one that, on average, tends to be to be higher or lower than the population parameter.
+
+## Question 1A - Is a biased estimate necessarily a sign of a useless model?
+No, a biased estimate does not mean the model is useless. To elaborate, one may have a biased estimator with low variance and an unbiased estimator with high variance. There are times where it is preferable to utilize the former rather than the latter. An example is when a biased estimator decreases the mean squared error more so than an unbiased estimator. 
+
+## Question 1A - Under what circumstances would you care if an estimate is biased and under what circumstances would you not?
+There are three notable circumstances when a biased estimate is acceptable to use:
+
+1) When one cannot measure the omitted variable and knows the theoretical direction of how it influences the estimate (e.g., whether the omitted variables increases or decreases $\hat{\beta}_1$).
+
+2) It decreases the mean squared error more so than the unbiased estimator (i.e., the biased estimator has less variance than the unbiased one).
+
+3) The model has more predictive accuracy using the biased estimator versus the unbiased one.
+
+When these circumstances do not occur, it is generally unjustified to use a biased estimator.
+
+## Question 1B - Under what conditions can we exclude the variable zi and still retain the unbiasedness property?
+We can exclude when $z_i$ from the equation when: 
+
+1) the pairwise correlation between $z_i$ and $\hat{Y}_i$ does not equal 0.
+
+2) the pairwise correlation between $x_i$ and $z_i$ does not equal 0.
+
+3) $\beta_z$ does not equal 0. 
+
+If these conditions are not met and $z$ is removed from the equation bias will occur (i.e., the other variables will attempt to explain the variation that is actually explained by $z$).
+
+## Question 1C - Use the code below to create the data and show the correlation coefficients between a) education and ability b) ability and income.
+```{r }
+#Creating correlation coefficents
+a<-cor(income$education_years, income$innate_ability)
+b<-cor(income$innate_ability, income$income)
+
+#Creating data frame to create table
+m<-data.frame(c("Education and Ability", "Ability and Income"))
+colnames(m)<-"Model"
+n<-data.frame(c(a, b))
+colnames(n)<-"Correlation Coefficent"
+t1<-cbind(m,n)
+kable(t1, digits=3)%>%
+kable_classic(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  row_spec(0, bold=TRUE, background="deepskyblue", color="black")%>%
+  row_spec(0, bold=TRUE, background="deepskyblue", color="black")%>%
+  row_spec(1:2, color="black")
+```
+
+## Question 1D - Run regression on two models and comapre them
+```{r }
+#Running the two different regressions
+m2<-lm(income~education_years + innate_ability, income)
+m3<-lm(income~education_years, income)
+q1d<-list(m2,m3)
+cm <- c('(Intercept)' = 'Intercept', 'education_years' = 'Education', 'innate_ability' = 'Ability')                                  
+msummary(q1d,  statistic = c('std.error'), stars = TRUE, coef_map=cm) %>%row_spec(0, bold = TRUE, color = 'black', background = 'deepskyblue')
+```
+
+The table above shows two regression models. The first model includes the ability variable and the second does not. The effects of omitting the variable are as follows:
+
+1) The intercept decreases by 54.910.
+
+2) The education coefficient increases by 326.3243 (indicating that the slope estimate will be systematically greater than the population slope).
+
+3) The standard error for the education coefficient increases by 3.643.
+
+Additionally, the ability variable is statistically significant (i.e., alpha is less than 0.05). In essence, adding in the innate ability variable into the model improves its overall predictive accuracy and reduces issues of bias. 
+
+## Question 1E - BONUS
+
+## Question 1F - Plot the distribution of the 1,000 estimated beta coefficients on education. Add a line that indicates the true population parameter and the mean of your 1,000 estimates.
+```{r } 
+#Creating loop to simulate beta
+n<-1000
+for(i in 1:n) {
+set.seed(NULL)
+  b_1_random<-rnorm(1000, 1, 0.6)
+  b_2_random<- rnorm(1000, 1, 0.6)
+  set.seed(1010)
+  income<-data.frame(education_years = rnorm(1000, 13, 3))
+  income$innate_ability <- income$education_years/3 + rnorm(1000, 0, 5)
+  income$income<- (b_0 + b_1*b_1_random*income$education_years + b_2*b_2_random*income$innate_ability)
+#Setting linear regression to extract coefficients 
+  y<-data.frame(income$income)
+  colnames(y)<-"y"
+  x<-data.frame(income$education_years)
+  colnames(x)<-"x"
+  df<-cbind(x, y)
+#Simple linear regression
+  r<-(lm(data=df, formula= y~x))
+#Extracting B0 
+  s$b0[i]<-summary(r)$coef[1,1]
+#Extracting B1
+  s$b1[i]<-summary(r)$coef[2,1]
+}
+
+#Creating plot for sample B1 
+ggplot(s, aes(x=b1))+
+  geom_histogram(aes(y=..density..),
+                 bins=30,
+                 colour="deepskyblue",
+                 fill="deepskyblue",
+                 alpha=0.3)+
+#Adding mean line
+geom_vline(aes(xintercept=mean(b1)),color="Snow", linetype="dashed", size=1)+
+  geom_vline(aes(xintercept=2000),color="Red", linetype="dashed", size=1)+
+  labs(x=bquote("Distribution of" ~ hat(beta)[1]),
+       y="Density",freq=F)+
+  theme_solarized(light = FALSE) +
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+```
+
+## Question 1F - What do you notice?
+The graph above shows the difference between the true and sample means of the slope. The red line highlights the true population mean line, and the white line shows the sample mean line. Essentially, it appears that when the ability variable is omitted the estimate is systematically too high. Additionally, the distribution of $\hat{\beta}_1$ has a very high degree of variance.
+
+## Question 1G - Run 1,000 simulations and plot the distributions of estimated beta coefficients on education. 
+```{r }
+#Doing the same thing as the previous chunk but for education
+for(i in 1:1000) {
+  set.seed(NULL)
+  b_1_random<-rnorm(1000, 1, 0.6)
+  b_2_random<- rnorm(1000, 1, 0.6)
+  set.seed(1010)
+  income<-data.frame(education_years = rnorm(1000, 13, 3))
+  income$innate_ability <- income$education_years/1000 + rnorm(1000, 0, 5)
+  income$income<-(b_0 + b_1*b_1_random*income$education_years + b_2*b_2_random*income$innate_ability)
+  y<-data.frame(income$income)
+  colnames(y)<-"y"
+  x<-data.frame(income$education_years)
+  colnames(x)<-"x"
+  df<-cbind(y, x)
+  r2<-(lm(data=df, formula= y~x))
+  #BO
+  s2$b0[i]<-summary(r2)$coef[1,1]
+  #B1
+  s2$b1[i]<-summary(r2)$coef[2,1]
+}
+
+#Creating plot for sample B1 
+ggplot(s2, aes(x=b1))+
+  geom_histogram(aes(y=..density..),
+                 bins=30,
+                 colour="deepskyblue",
+                 fill="deepskyblue",
+                 alpha=0.3)+
+#Adding mean line
+geom_vline(aes(xintercept=mean(b1)),color="Snow", linetype="dashed", size=1)+
+  geom_vline(aes(xintercept=2000),color="Red", linetype="dashed", size=1)+
+  labs(x=bquote("Distribution of" ~ hat(beta)[1]),
+       y="Density",freq=F)+
+  theme_solarized(light = FALSE) +
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+```
+
+## Question 1G - How has the distribution changed?
+I weakened the omitted variable bias by altering how dependent ability is on education. This was done by dividing education by 1000 versus dividing it by 3. The distribution's variance has decreased substantially, and the population mean and sample mean are now nearly identical.
+
+# **Question 2**
+## Question 2A - Is linear regression an appropriate model to use with skewed distributions?
+```{r }
+#Creating density plots for the raised and pvi_abs variables
+r<-ggplot(cf, aes(x=raised)) +
+  geom_histogram(aes(y=..density..),
+                 bins=30,
+                 colour="deepskyblue",
+                 fill="deepskyblue", alpha=0.3)+
+    labs(x=bquote("Distribution of Raised Variable"),
+       y="Density",freq=F)+
+  theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+
+p<-ggplot(cf, aes(x=pvi_abs)) +
+  geom_histogram(aes(y=..density..),
+                 bins=30,
+                 colour="deepskyblue",
+                 fill="deepskyblue", alpha=0.3)+
+    labs(x=bquote("Distribution of Raised PVI Variable"),
+       y="Density",freq=F)+
+  theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+grid.arrange(r, p, ncol=1)
+
+#Calculating skewness of variables
+rs<-skewness(cf$raised)
+ps<-skewness(cf$pvi_abs)
+```
+
+No, one should not use skewed distributions for a linear model. This violates the fundamental assumption of normality in OLS. Both variables are skewed to the right (i.e., there appears to be a number of outliers). The raised variable has a high skewness score of 4.267213, and the PVI variable has a moderate skewness score of 0.8642415.
+
+## Question 2B - First, present your results using a standard regression table. Then, please present your results in a way that facilitates interpretation.
+```{r }
+#Calculating regression and extracting information for table
+q2d<-list()
+q2d[['Model 1']]<-lm(raised~pvi_abs, data=cf)
+q2d[['Scaled Model 1']]<-lm(scale(raised)~scale(pvi_abs), data=cf)
+cm <- c('(Intercept)'= "Intercept",  "pvi_abs"='PVI', 'scale(pvi_abs)' = 'PVI')
+msummary(q2d,  statistic = c('std.error'), stars = TRUE, coef_map=cm)%>%
+  row_spec(0, bold = TRUE, color = 'black', background = 'deepskyblue')
+```
+
+## Question 2B - Interpret the regression output, focusing on the substantive significance of the coefficient on pvi_abs.
+The PVI variable is statistically significant. This means that there appears to be an association between the Cook Partisan Voting Index and money raised. When the PVI increases by one unit, it decreases money raised by 246772.13 USD dollars. In layman's terms, strong partisan seems to reduce the money raised in a district. These results are surprising because, intuitively, it would be expected that stronger partisanship in a district would motivate citizens to donate more.
+
+## Question 2C - What can the summary of the residuals produced by the summary() function tell you?
+```{r }
+#Extracting residuals from regression and making table
+m1<-lm(raised~pvi_abs, data=cf)
+x<-data.frame(m1[['residuals']])
+colnames(x)<-"x"
+s<-summary(m1$residuals)
+o<-data.frame(c("Maximum", "3rd Quartile", "Median", "1st Quartile", "Minimum"))
+colnames(o)<-"Summary Statistics"
+sa<-data.frame(c("78671503", "433987", "-2573204", "-4316712", "-7971624"))
+colnames(sa)<-"Residual Values"
+sr<-cbind(o,sa)
+
+kbl(sr)%>%
+  kable_classic(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  row_spec(0, bold=TRUE, background="deepskyblue", color="black")%>%
+  row_spec(0, bold=TRUE, color="black")
+```
+
+The summary statistics give a brief insight into the spread and distribution of the fitted model's residuals. For the distribution to be symmetric, it is expected that the median is close to 0 and that the minimum and maximum be roughly equal in absolute value. When residuals are non-normal, it can potentially violate the assumption of normality and can make the model biased (e.g., over or underestimating the parameter). The results presented in the table above show that the residual distribution is not symmetric and highly skewed. 
+
+## Question 2D - Make a spread-location plot. What would we expect to see if the assumption of homoskedasticity were met? 
+```{r } 
+#Creating spread-location plot
+ggplot(m1, aes(.fitted, sqrt(abs(.stdresid))))+
+  geom_point(color='deepskyblue',na.rm=TRUE)+
+  stat_smooth(method="loess", color='deepskyblue', na.rm = TRUE)+
+  xlab("Fitted Value")+
+  ylab(expression(sqrt("|Standardized residuals|")))+
+  ggtitle("Spread-Location Plot")+ 
+  theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+```
+
+The plot above tests potential biases and other issues in a model (e.g., Heteroskedasticity). A spread-location plot that is homoskedastic mode has randomly distributed points/observations (i.e., there will be no obvious pattern). There should not be residual points that spread wider and wider the further down the loess line. In other words, the assumption is violated when there is unequal variance amongst observations. When homoskedasticity is met, it is expected that the variance of the residuals will be constant amongst all fitted values and all the values of the explanatory variable.
+
+## Question 2D - In the case of our model, should we be concerned with heteroskedasticity?
+```{r }
+#Conducting BP test
+bp<-bptest(m1)
+
+#Creating Table 
+o<-data.frame(c("Score", "P-Value"))
+colnames(o)<-"Studentized Breusch-Pagan Test Result"
+e<-data.frame(c(5.7501, 0.01649))
+colnames(e)<-"Results"
+t6<-cbind(o,e)
+
+#Creating table
+kbl(t6) %>%
+  kable_classic(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  row_spec(0, bold=TRUE, background="deepskyblue", color="black")%>%
+  row_spec(0, bold=TRUE, color="black")
+```
+
+The results of the Studentized Breusch-Pagan Test show a p-value less than 0.05, which means that I cannot reject the null (i.e., the model violates the assumption of constant variance). Ergo, I should be concerned that this model is heteroskedastic. 
+
+## Question 2D - Should we still trust the β on pvi_abs? What about the standard error of that coefficient?
+Heteroskedasticity does not necessarily impact the coefficient estimates. Thus, it is not necessary to be concerned about $\hat{\beta}_1$. However, heteroskedasticity violates the assumption of constant variance (i.e., the error term has a constant variance amongst all values of the X variables). When this assumption is violated, the standard errors of the estimates are inconsistent. Consequently, OLS is no longer BLUE for this model. Put differently, I can trust $\hat{\beta}_1$ but not the standard errors.
+
+## Question 2E - Re-estimate the linear model with heteroskedastic-consistent standard errors. Present this new model side-by-side with the original model.
+```{r }
+#Calculating robust standard errors
+q3d<-list()
+q3d[['Model 1']]<-lm(raised~pvi_abs, data=cf)
+q3d[['Robust Model 1']]<-coeftest(m1,vcov=vcovHC(m1,"HC0"))
+cm <- c('(Intercept)'= "Intercept",  "pvi_abs"='PVI')
+msummary(q3d,  statistic = c('std.error'), stars = TRUE, coef_map=cm)%>%
+  row_spec(0, bold = TRUE, color = 'black', background = 'deepskyblue')
+```
+
+## Question 2E - What has happened to the standard error of our beta estimate on pvi_abs?
+The regression model results show that when I do not use robust standard errors, the standard error for PVI increases by 1824.36. Consequently, a higher standard error decreases the preciseness and confidence of the estimate.
+ 
+## Question 2E - Within the framework of hypothesis testing/constructing confidence intervals, explain what we mean when we say that the robust standard errors are “correct”.
+Robust standard errors are standardized standard errors. This helps address issues of heteroskedasticity, which consequently improves the reliance on the model's standard errors. 
+
+## Question 2F - Plot the distribution of studentized residuals from our simple bivariate model. Overlay the corresponding t-distribution. 
+```{r }
+#Running regression
+m1<-lm(raised~pvi_abs, data=cf)
+#Calculating studentized residuals
+x<-studres(m1)%>%data.frame()
+colnames(x)<-"x"
+
+#Plotting density plot for studentized residuals 
+ggplot(x, aes(x=x))+
+   geom_histogram(aes(y=..density..), color='deepskyblue', fill='deepskyblue', alpha=0.3, na.rm=TRUE)+
+stat_function(fun = dt, args = list(df=527), color="red")+
+   xlab("Studentized Residuals")+
+  ylab("Density")+
+    theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+```
+
+## Question 2F - Why are studentized residuals useful compared to the untransformed residuals?
+Studentized residuals allow one to detect and understand the effect that outliers have on his/her model. It is extremely difficult to detect outliers with untransformed residuals. 
+
+## Question 2F - In our case, is the assumption of normality of errors reasonable? 
+No, we can not meet the assumption of normality. Essentially, residuals are a linear function of random errors. The assumption of normality requires that the errors are i.i.d. normal, and thus by extension, the residuals should be normally distributed also. Furthermore, using a t-distribution to analyze studentized residuals helps me diagnose issues of normality. The graph above clearly shows that the distribution is not normal and is skewed heavily to the right. 
+
+## Question 2F -  What does this say about our model?
+That it violates the assumption of normality and OLS may not be the BLUE for this model. 
+
+## Question 2G - Regress the natural log of raised on pvi_abs (model 2) and interpret the output.
+```{r }
+#Calculating the log for the raised variable and running regression
+cf<-cf%>%mutate(r=log(raised))
+q4d<-list()
+q4d[['Model 2']]<-lm(r~pvi_abs, data=cf)
+cm <- c('(Intercept)'= "Intercept",  "pvi_abs"='PVI')
+msummary(q4d,  statistic = c('std.error'), stars = TRUE, coef_map=cm)%>%
+  row_spec(0, bold = TRUE, color = 'black', background = 'deepskyblue')
+```
+
+The table above shows a p-value less than 0.05. This means that I can reject the null hypothesis (i.e., PVI does not increase or decrease the money raised in a district). The coefficient for the PVI is negative. When there is a one-unit increase in the PVI variable, it reduces the log of money raised by 5.3%.
+
+## Question 2G - Use the diagnostic tool of your choice to assess model fit. Have we at least partially corrected the likely specification error that plagued our earlier model?
+```{r }
+mo2<-lm(r~pvi_abs, data=cf)
+#Creating spread-location plot
+ggplot(mo2, aes(.fitted, sqrt(abs(.stdresid))))+
+  geom_point(color='deepskyblue',na.rm=TRUE)+
+  stat_smooth(method="loess", color='deepskyblue', na.rm = TRUE)+
+  xlab("Fitted Value")+
+  ylab(expression(sqrt("|Standardized residuals|")))+
+  ggtitle("Scale-Location Plot")+ 
+  theme_solarized(light = FALSE)+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+
+#Calculating if BP-Test
+bp<-bptest(mo2)
+
+#Creating Table 
+o<-data.frame(c("Score", "P-Value"))
+colnames(o)<-"Studentized Breusch-Pagan Test Result"
+e<-data.frame(c(0.70717, 0.4004))
+colnames(e)<-"Results"
+t6<-cbind(o,e)
+
+kbl(t6) %>%
+  kable_classic(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  row_spec(0, bold=TRUE, background="deepskyblue", color="black")%>%
+  row_spec(0, bold=TRUE, color="black")
+```
+
+Yes, by taking the log of the raised variable, we have decreased issues of heteroskedasticity. The Breusch-Pagan test shows a p-value greater than 0.05, meaning that the constant variance of errors assumption is not violated. Additionally, the spread-location plot indicates that there is less variance than the previous model.
+
+## Question 2H - Using model 2, begin by examining the observations with the largest absolute studentized residuals. Do they have anything in common?
+```{r }
+#Calculating studentized reisduls and predicted values
+cf$predicted <- predict(mo2)  
+cf$studres <- studres(mo2)
+
+#Extracting and calculating studentized residuals
+t<-cf
+t<-t%>%mutate(asr=abs(studres))
+t<-arrange(t, desc(t$asr))
+t<-slice(t, 1:4)
+t<-t%>%dplyr::select(name, party, state, house, district, leader, pvi_abs, warshaw_ideol_abs, asr)
+colnames(t)<-c("Name", "Party", "State", "House", "District", "Leader", "PVI", "Ideology", "Studentized Resdiual")
+kbl(t, digits=3) %>%
+  kable_classic(bootstrap_options = c("striped", "hover", "condensed","responsive", "bordered"))%>%
+  row_spec(0, bold=TRUE, background="deepskyblue", color="black")%>%
+  row_spec(0, bold=TRUE, color="black")
+
+#Plotting Residual graph
+ggplot(cf, aes(x = pvi_abs, y = r)) +
+geom_smooth(method = "lm", se = FALSE, color = "snow") +  
+  geom_segment(aes(xend = pvi_abs, yend = predicted), color="white", size=1) +   
+  geom_point(aes(color = abs(studres), size = abs(studres))) +  
+  scale_color_continuous(low = "deepskyblue", high = "blue") +   
+  guides(color = FALSE, size = FALSE) + 
+  geom_point(aes(y = predicted), shape = 1) +
+  theme_solarized(light = FALSE)+
+  xlab("PVI")+
+  ylab("Log(Raised)")+
+  font("title", size = 14, colour = "snow")+
+  font("xy.title", size = 12, colour = "snow")+
+  font("xy.text", color="snow")
+```
+
+The political representatives with the top 4 largest absolute studentized residuals have the following in common: 1) they are all house representatives, 2) 3 out of 4 are republicans, and 3) none are party leaders.
+
+## Question 2H - Then, regress the log of raised on pvi_abs, house, party, and leader (model 3). Make a regression table that presents the results from this model as well as the basic model we used earlier.
+```{r }
+#Calculating multiple regression and extracting information for table
+q5d<-list()
+q5d[['Model 2']]<-lm(r~pvi_abs, cf)
+q5d[['Model 3']]<-lm(r~pvi_abs + house + party + leader, data=cf)
+cm <- c('(Intercept)'= "Intercept",  "pvi_abs"='PVI', "house"="House", "party"="Party", "leader"="Leader")
+msummary(q5d,  statistic = c('std.error'), stars = TRUE, coef_map=cm)%>%
+  row_spec(0, bold = TRUE, color = 'black', background = 'deepskyblue')
+```
+
+All the variables in both models are statistically significant. Adding in the leader variable decreased the standard errors for both the intercept and PVI variable. Additionally, the adjusted R-squared increased significantly (i.e., from 0.130 to 0.463). This means that putting the leader variables in the model improves the overall fit. 
+
+## Question 2I - Using model 3 make an influence plot. What implication do your results have for your regression results? Discuss the relevance of both leverage and outlyingness. Highlight a few observations that would merit further attention.
+```{r }
+#Creating influential plot
+m3<-lm(r~pvi_abs + house + party + leader, data=cf)
+plotInfluence(m3)
+```
+
+Influential plots encompass both leverage and outlier points. Outliers are observations that a model does a very poor job of predicting. Outliers do not necessarily distort the slope of the model significantly. However, it raises questions about whether or not these outliers are an exception or if there is something wrong with the model. Put differently, the values have either a very large negative or positive residuals (i.e., outliers suggest that the model is vastly underestimating the response value for these observations). A leverage point is an observation that significantly alters the slope. The leverage of the observation is contingent upon how much that observation's value on the predictor variable varies from the predictor variable's mean. Another way to think about leverage points is that if removed, they can drastically change the model results. There are two noticeable outliers, observations 118 and 392. Additionally, there are two noticeable influential points are observations 466 and 512.
+
+## Question 2J - Presume that we want to improve the explanatory power of our model by introducing additional covariates. Include warshaw_ideol_abs in addition to the other covariates from model 3 (call this model 4). Briefly comment the results. What has changed from model 3? Why? Which model do you prefer?
+```{r }
+q6d<-list()
+q6d[['Model 3']]<-lm(r~pvi_abs + house + party + leader, data=cf)
+q6d[['Model 4']]<-lm(r~pvi_abs + house + party + leader + warshaw_ideol_abs, data=cf)
+cm <- c('(Intercept)'= "Intercept",  "pvi_abs"='PVI', "house"="House", "party"="Party", "leader"="Leader", "warshaw_ideol_abs" = "Ideology")
+msummary(q6d,  statistic = c('std.error'), stars = TRUE, coef_map=cm)%>%
+  row_spec(0, bold = TRUE, color = 'black', background = 'deepskyblue')
+``` 
+
+There are no significant differences between model 4 and 3 (e.g., adjusted R-squared does not change). Nearly all the independent variables for both models are identical except for the PVI variable. When including the ideology variable into the model it decreases PVI's coefficient from -0.038 to -0.045. Additionally, the PVI variable in model 4 has a larger standard error than the PVI variable in model 3 (i.e., 0.008 versus 0.005). It should be noted that all the same variables in both models are statistically significant. Despite the minor change that adding the ideology does, I would choose model 3 over model 4. I would do this because including irrelevant variables can create several problems for a model (e.g., over-specification can increase issues of multicollinearity). Moreover, the variable of interest is PVI, and its standard error increased when introducing another variable. Consequently, this makes the estimate less precise.
