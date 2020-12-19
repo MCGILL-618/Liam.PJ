@@ -1,0 +1,641 @@
+---
+title: "Examing the Relationship Between Conflict and State-Led Mass Killings"
+author: "Liam Palcu-Johnston"
+date: "16/12/2020"
+output: word_document
+---
+```{r setup, include=FALSE}
+####################################
+#LOADING PACKAGES AND CREATING DATA#
+####################################
+rm(list=ls(all=TRUE))
+pacman::p_load(tidyverse, kableExtra,mfx, sjPlot, ggplot2, jtools,car, blorr, DescTools, MASS, aod, oddsratio, countrycode, sjstats, foreign, bestNormalize, lmtest, sandwich, estimatr, haven, cowplot, kableExtra, ggpubr, ggdark, qwraps2, plotly, ggeffects, psych, MASS, reshape2, broom, pscl, DAMisc, gridExtra, sjlabelled, clusrank, estimatr, modelsummary, countrycode, ggthemes, flextable, table1, summarytools, magrittr, data.table, haven)
+mk<-read_dta("~/Final Project Data set/Varieties_JPR_Data.dta")
+mk<-remove_all_labels(mk)
+#I am merging the data set with Ulfelder's data set.
+#This information will be used for my second analysis when I test Anderton and Carter's model
+ew<-read.csv("~/Master's Political Science - Fall 2020/Final Project/earlywarningproject-statrisk-replication-master/data.out/ewp.statrisk.data.transformed.csv")
+#removing any duplicates
+ew<-ew %>% distinct(country, sftgcode, year, .keep_all = TRUE)
+#Adding in CCODe to merge data sets
+ew$ccode<- countrycode(ew$country, origin = "country.name", destination = "cown", warn = TRUE)
+#Selecting data that will be used in analysis
+ew<-ew%>%dplyr::select(ccode, year, pol.polity2, pol.polity, countryage, pit.eth.magarea, pit.rev.magarea, pit.eth.magfight, pit.rev.magfight, pol.durable, dis.l4pop, wdi.trade, wdi.gdppcppp, wdi.gdppc, imf.gdppc, wdi.popsize, wdi.popsize.ln, wdi.popdens, wdi.trade.ln, wdi.trade, dis.l4pop.ln, elf.ethnic)
+################################
+#ANDERTON/EARLY WARNING DATASET#
+################################
+#Creating the variables that will be used in the analysis
+#regime
+ew$ano<-ifelse(ew$pol.polity2>=-5 & ew$pol.polity2<=5, 1, 0)
+#INCOME VARIABLE
+ew<-ew%>%mutate(gdp=log(wdi.gdppc))
+ew$gdp<-as.numeric(ew$gdp)
+#NEW STATE STATUS VARIABLE
+ew$countryage<-as.numeric(ew$countryage)
+ew$ns<-ifelse(ew$countryage<=5, 1, 0)
+#THREAT
+ew$pit.eth.magarea[ew$pit.eth.magarea==9]<-NA
+ew$pit.rev.magarea[ew$pit.rev.magarea==9]<-NA
+ew$threat<-(pmax(ew$pit.eth.magarea, ew$pit.rev.magarea))
+#FIGHT
+ew$pit.eth.magfight[ew$pit.eth.magfight==9]<-NA
+ew$pit.rev.magfight[ew$pit.rev.magfight==9]<-NA
+ew$fight<-(pmax(ew$pit.eth.magfight, ew$pit.rev.magfight))
+#COLD WAR VARIABLE
+ew$cold<-ifelse(ew$year>=1947 & ew$year<=1991, 1, 0)
+#POPULATION VARIABLE
+ew<-ew%>%mutate(dpop=(log(wdi.popdens)))
+ew$dpop<-as.numeric(ew$dpop)
+ew<-ew%>%mutate(pop=(log(wdi.popsize)))
+ew$pop<-as.numeric(ew$pop)
+mk<-left_join(mk, ew, by=c("ccode", "year"))
+mk<-mk%>% distinct(location, id, sidea, sideb, year, .keep_all = TRUE)
+mk<-mk%>% mutate(p=(pop_PWT * 1000000))%>%mutate(p=log(p))%>% mutate(g=log(rgdpch_PWT))
+#############
+#DIAGNOSTICS#
+#############
+#~~~~~~~~~~~~~~~~~~DANIEL KCRAMERIC'S MODEL ONE~~~~~~~~~~~~~~#
+#########################
+#LINEARITY IN PARAMETERS#
+#########################
+m1d<-mk%>%select(start_specific,irregular,gwf_dem,ETHPOL,tradeopeni,exclusion,rgdpch_PWT,intensity,territorial,pop_PWT)
+m1d<-na.omit(m1d)
+m1<-glm(start_specific~irregular+gwf_dem + ETHPOL +tradeopeni + exclusion+intensity+territorial + rgdpch_PWT + pop_PWT, family="binomial",data=m1d)
+probabilities <- predict(m1, type = "response")
+mydata <- m1d%>% dplyr::select_if(is.numeric) 
+predictors <- colnames(mydata)
+mydata <- mydata %>%
+  mutate(logit = log(probabilities/(1-probabilities))) %>%
+  gather(key = "predictors", value = "predictor.value", -logit)
+ggplot(mydata, aes(logit, predictor.value))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  geom_smooth(method = "lm") + 
+  theme_bw() + 
+  facet_wrap(~predictors, scales = "free_y")
+#THE RESULTS ARE NOT IDEAL. I WOULD LIKE THEM TO BE COMPLETELY LINEAR HOWEVER THIS IS NOT NECESSARY, I MADE ALTERATIONS TO DO THE DATA AND WHEN I COMPARED THE RESULTS THIS MODEL PREFORMED BEST, THUS I KEPT THE DATA LIKE THIS.
+##########
+#OUTLIERS#
+##########
+model.data <- augment(m1) %>% 
+  mutate(index = 1:n()) 
+model.data %>% top_n(3, .cooksd)
+ggplot(model.data, aes(index, .std.resid)) + 
+  geom_point(aes(color = start_specific), alpha = .5) +
+  theme_bw()
+model.data %>% 
+  filter(abs(.std.resid) > 3)
+#THE RESULTS SHOW NO OUTLIERS WITH A STANDARDIZED SCORE OF 3 OR ABOVE. THUS I AM NOT CONCERNED ABOUT MY RESULTS BEING SKEWED
+##################
+#MULITCOLINEARITY#
+##################
+car::vif(m1)
+#SCORES ARE LOW. NO CONCERNS OF MULTICOLINEARITY 
+
+#~~~~~~~~~~~~~~~~~~DANIEL KCRAMERIC'S MODEL TWO~~~~~~~~~~~~~~#
+#########################
+#LINEARITY IN PARAMETERS#
+#########################
+m1d<-mk%>%select(start_specific,irregular, SNC, gwf_dem,ETHPOL,tradeopeni,exclusion,rgdpch_PWT,intensity,territorial,pop_PWT)
+m1d<-na.omit(m1d)
+m1<-glm(start_specific~irregular+ SNC +gwf_dem + ETHPOL +tradeopeni + exclusion+intensity+territorial + rgdpch_PWT + pop_PWT, family="binomial",data=m1d)
+probabilities <- predict(m1, type = "response")
+mydata <- m1d%>% dplyr::select_if(is.numeric) 
+predictors <- colnames(mydata)
+mydata <- mydata %>%
+  mutate(logit = log(probabilities/(1-probabilities))) %>%
+  gather(key = "predictors", value = "predictor.value", -logit)
+ggplot(mydata, aes(logit, predictor.value))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  geom_smooth(method = "lm") + 
+  theme_bw() + 
+  facet_wrap(~predictors, scales = "free_y")
+#THE RESULTS ARE NOT IDEAL. I WOULD LIKE THEM TO BE COMPLETELY LINEAR HOWEVER THIS IS NOT NECESSARY, I MADE ALTERATIONS TO DO THE DATA AND WHEN I COMPARED THE RESULTS THIS MODEL PREFORMED BEST, THUS I KEPT THE DATA LIKE THIS.
+##########
+#OUTLIERS#
+##########
+model.data <- augment(m1) %>% 
+  mutate(index = 1:n()) 
+model.data %>% top_n(3, .cooksd)
+ggplot(model.data, aes(index, .std.resid)) + 
+  geom_point(aes(color = start_specific), alpha = .5) +
+  theme_bw()
+model.data %>% 
+  filter(abs(.std.resid) > 3)
+#THE RESULTS SHOW NO OUTLIERS WITH A STANDARDIZED SCORE OF 3 OR ABOVE. THUS I AM NOT CONCERNED ABOUT MY RESULTS BEING SKEWED
+##################
+#MULITCOLINEARITY#
+##################
+car::vif(m1)
+#SCORES ARE LOW. NO CONCERNS OF MULTICOLINEARITY 
+
+#~~~~~~~~~~~~~~~~~~DANIEL KCRAMERIC'S MODEL TWO~~~~~~~~~~~~~~#
+#########################
+#LINEARITY IN PARAMETERS#
+#########################
+m1d<-mk%>%select(start_specific,irregular, conventional, gwf_dem,ETHPOL,tradeopeni,exclusion,rgdpch_PWT,intensity,territorial,pop_PWT)
+m1d<-na.omit(m1d)
+m1<-glm(start_specific~irregular+ conventional +gwf_dem + ETHPOL +tradeopeni + exclusion+intensity+territorial + rgdpch_PWT + pop_PWT, family="binomial",data=m1d)
+probabilities <- predict(m1, type = "response")
+mydata <- m1d%>% dplyr::select_if(is.numeric) 
+predictors <- colnames(mydata)
+mydata <- mydata %>%
+  mutate(logit = log(probabilities/(1-probabilities))) %>%
+  gather(key = "predictors", value = "predictor.value", -logit)
+ggplot(mydata, aes(logit, predictor.value))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  geom_smooth(method = "lm") + 
+  theme_bw() + 
+  facet_wrap(~predictors, scales = "free_y")
+#THE RESULTS ARE NOT IDEAL. I WOULD LIKE THEM TO BE COMPLETELY LINEAR HOWEVER THIS IS NOT NECESSARY, I MADE ALTERATIONS TO DO THE DATA AND WHEN I COMPARED THE RESULTS THIS MODEL PREFORMED BEST, THUS I KEPT THE DATA LIKE THIS.
+##########
+#OUTLIERS#
+##########
+model.data <- augment(m1) %>% 
+  mutate(index = 1:n()) 
+model.data %>% top_n(3, .cooksd)
+ggplot(model.data, aes(index, .std.resid)) + 
+  geom_point(aes(color = start_specific), alpha = .5) +
+  theme_bw()
+model.data %>% 
+  filter(abs(.std.resid) > 3)
+#THE RESULTS SHOW NO OUTLIERS WITH A STANDARDIZED SCORE OF 3 OR ABOVE. THUS I AM NOT CONCERNED ABOUT MY RESULTS BEING SKEWED. ADDITIONALLY, POL.POLITY WILL BE TREATED AS A POLYNOMIAL.
+##################
+#MULITCOLINEARITY#
+##################
+car::vif(m1)
+#SCORES ARE LOW. NO CONCERNS OF MULTICOLINEARITY 
+#IT SHOULD BE NOTED THAT ISSUES OF HETEROSKEDASTICITY AND AUTOCORRELATION ARE ADDRESS BY USING CLUSTERED STANDARD ERRORS WITH COUNTRIES
+#~~~~~~~~~~~~~~~~~~ANDERTON'S MODEL~~~~~~~~~~~~~~#
+#########################
+#LINEARITY IN PARAMETERS#
+#########################
+m1d<-mk%>%select(ccode, start_specific, threat, ano,ns,pop_PWT, rgdpch_PWT,cold, dis.l4pop)
+m1d<-na.omit(m1d)
+m1<-glm(start_specific~threat+ano+ns+pop_PWT+rgdpch_PWT+cold+dis.l4pop, family="binomial", data=mk)
+probabilities <- predict(m1, type = "response")
+mydata <- m1d%>% dplyr::select_if(is.numeric) 
+predictors <- colnames(mydata)
+mydata <- mydata %>%
+  mutate(logit = log(probabilities/(1-probabilities))) %>%
+  gather(key = "predictors", value = "predictor.value", -logit)
+ggplot(mydata, aes(logit, predictor.value))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  geom_smooth(method = "lm") + 
+  theme_bw() + 
+  facet_wrap(~predictors, scales = "free_y")
+#THE RESULTS ARE NOT IDEAL. I WOULD LIKE THEM TO BE COMPLETELY LINEAR HOWEVER THIS IS NOT NECESSARY, I MADE ALTERATIONS TO DO THE DATA AND WHEN I COMPARED THE RESULTS THIS MODEL PREFORMED BEST, THUS I KEPT THE DATA LIKE THIS.
+##########
+#OUTLIERS#
+##########
+model.data <- augment(m1) %>% 
+  mutate(index = 1:n()) 
+model.data %>% top_n(3, .cooksd)
+ggplot(model.data, aes(index, .std.resid)) + 
+  geom_point(aes(color = start_specific), alpha = .5) +
+  theme_bw()
+model.data %>% 
+  filter(abs(.std.resid) > 3)
+#THE RESULTS SHOW NO OUTLIERS WITH A STANDARDIZED SCORE OF 3 OR ABOVE. THUS I AM NOT CONCERNED ABOUT MY RESULTS BEING SKEWED
+##################
+#MULITCOLINEARITY#
+##################
+car::vif(m1)
+#SCORES ARE LOW. NO CONCERNS OF MULTICOLINEARITY 
+#IT SHOULD BE NOTED THAT ISSUES OF HETEROSKEDASTICITY AND AUTOCORRELATION ARE ADDRESS BY USING CLUSTERED STANDARD ERRORS WITH COUNTRIES
+```
+
+In this paper, I explore how civil war effects instances of mass killings. I build on Daniel Kcramric’s research, which challenges the conventional view that mass killings are a rational strategy utilized by states to eliminate civilians who may be helping insurgents (Balch-Lindsay, Huth & Valentino, 2004; Krain, 1997; Krcmaric, 2017; Valentino, 2014). He counters this position by asserting that if states are rational actors, it is unlikely that mass killings will occur during guerilla war because it is more effective to win over civilians’ hearts and minds rather than eliminate them. He hypothesizes that conventional warfare is the most likely type of war to increase instances of mass killings (Krcmaric, 2017). I analyze his three models which test whether guerrilla, SNC, or conventional warfare is most likely to provoke mass killings  . Based on my analysis, I notice that SNC warfare appears to be the only type of war that increases the likelihood of mass killing. This type of war’s defining characteristics are that the state is weak and vulnerable to being overthrown by rebels (Krcmaric, 2017). The results suggest that state vulnerability may be a central factor in explaining mass killings rather than the type of war (Anderton & Carter, 2014). I add to this finding by conducting another analysis using Anderton & Carter’s (2014) model. Based on my results, I conclude that, although there are elements of state vulnerability that increase the likelihood of conflict, it is challenging to know the association’s strength with confidence (Anderton & Carter, 2014). I suggest that Kcramric’s and my analysis has several weaknesses. The most important is a theoretical weakness wherein neither of our models included how rebels’ civilian support impacts instances of mass killing (Balch-Lindsay, Huth & Valentino, 2004; Krcmaric, 2017; Valentino, 2014). Additionally, conducting this future analysis on a data set with a large number of cases (specifically with instances of mass killings) would be necessary to improve preciseness and confidence in the estimates. This paper will be structured in the following way: 1) I will present the academic debate over how different types of war increase the likelihood of mass killing. 2) I will describe the statistical methods and data used in this analysis. 3) I will display the logistic regression results for the models. 4) I will provide a brief discussion about my overall results and the limitations/weaknesses of the study.
+
+# Context and Theory
+In political violence literature, academics generally agree that civil war (or political instability) has a strong association with state-led mass killings (Balch-Lindsay, Huth, & Valentino, 2004; Finkel & Straus, 2012; Krain, 1997; Krcmaric, 2017; Schwartz & Straus, 2018; Straus, 2013; Ulfelder & Valentino, 2008; Valentino, 2014). Balch-Lindsay, Huth, & Valentino (2004) conducted a logistic regression to understand how and why certain types of civil war increase the likelihood of mass killings. Their research concludes that mass killing is a tactic used by the government during guerrilla wars to fight off insurgents that heavily rely on civilian support (pp. 377-378; p. 384). States that depend on conventional strategies to defeat guerillas struggle because of the insurgents’ use of hit-and-run fighting style, their untraceable forms of communication, and their ability to gain local support and hide from the government (Balch-Lindsay, Huth, & Valentin, 2004, pp. 377-378; pp. 383-387). Consequently, the state has trouble gaining intelligence on insurgent operations and locating the guerrillas’ personnel (Balch-Lindsay, Huth, & Valentin, 2004, pp. 377-378; pp. 383-387). Due to the state’s persistent struggle to defeat the insurgents, the government will resort to extreme tactics. Put differently, when insurgents are militarily powerful (e.g., have large quantities of military weapons, possess valuable intelligence, have access to hideouts, can conduct effective military strategies) and have significant support from communal members, it is difficult for the government to defeat insurgents with conventional military strategies. To ensure victory, states will eliminate any rebel supporters or portions of the public that strategically benefit the insurgents (Balch-Lindsay, Huth, & Valentin, 2004, pp. 377-379; pp. 383-387). When the authors tested this theory, they found that mass killings were three times more likely when there was an instance of guerrilla warfare versus when there was not. The probability of mass killing increased by 27.9 times when the authors’ held the guerilla warfare variable constant and introduced a high civilian support variable in their regression (i.e., 100,000 or more active rebel supporters) (Balch-Lindsay, Huth, & Valentin, 2004, pp. 393-399). Krcmaric (2017) refutes this theory by asserting that guerrilla warfare is the least likely type of civil war to provoke mass killing (pp. 19-24). Guerrilla warfare has the following characteristics:
+1) The government and insurgents are fighting over gaining the loyalty of civilians in contested locations (pp. 19-24).
+2) There is only a small number of rebel fighters (Krcmaric, 2017, pp. 19-24).
+3) The insurgents tend to be scattered through the local population ((Krcmaric, 2017, pp. 19-24).
+4) The weaponry used by the insurgents is not sophisticated ((Krcmaric, 2017, pp. 19-24).
+5) Rebels can carry out attacks that hurt the state, but the guerrillas are not strong enough to defeat the government head-on (Krcmaric, 2017, pp. 19-24).
+
+Academics who study political violence tend to agree that mass killing is a rational strategy used to preserve positions of power (Valentino, 2014). If states are rational actors, then it is unlikely that mass killing will occur during guerilla warfare because it is more effective to win over civilians’ hearts and minds rather than eliminate them (Krcmaric, 2017, pp. 19-26). Government violence often increases public support of rebels (which gives them more power) and increases the chance of a civilian uprising. In layman’s terms, if states are rational and guerrilla’s gain significant power from civilian support, it is more effective to win the public’s loyalty than to eliminate them when trying to defeat insurgents (Krcmaric, 2017, pp. 19-26).
+Krcmaric argues that conventional warfare is the type of conflict that increases the probability of mass killings (Krcmaric, 2017, pp. 19-26). Conventional war is when the state and a rebel group have established and complete control of separate pieces of territory. Each side has access to advanced weaponry, and all combat is direct military fighting (Krcmaric, 2017, pp. 19-26). The battles take place in clearly defined and agreed upon areas. Additionally, segments of the population live nearby and are a part of a rebel or state-controlled area (Krcmaric, 2017, pp. 19-26). These conflicts provoke instances of mass killings more than guerilla wars for three reasons:
+
+1) Mass killing is a more effective strategy in a conventional war. Often eliminating civilians living near rebel bases will severely weaken the economic development of the region. Hence, the poor economic growth, by extension, will undermine the rebel’s military strength in the long term (Krcmaric, 2017, pp. 19-26).
+
+2) The state does not need to worry about civilian defection during conventional warfare because the rebel and state supporters do not live together. Civilian groups will live nearby and have a strong allegiance to either the government or the rebels (Krcmaric, 2017, pp. 19-26).
+
+3) The state does not fear rebels gaining access to information from civilians that could hurt the state and there is no need for the government to rely on civilians for information on guerrillas (Krcmaric, 2017, pp. 19-26). During guerilla warfare, the key to victory is for the state to have access to crucial intelligence (e.g., insurgents’ secret hideouts and overall strategy). For government personnel to receive this intelligence, it requires a good relationship with citizens to incentivize the public to report any useful information. During conventional warfare, communication with civilians is not required. The state knows where the rebels are and how the battles will take place (Krcmaric, 2017, pp. 19-26). Based on this review of the literature, Krcmaric has two hypotheses:
+
+$H_0:$ The likelihood of state-led mass killings is higher when there is a guerrilla war versus when there is a conventional war.
+
+$H_1:$ The likelihood of state-led mass killings is higher when there is a conventional war versus when there is a guerrilla war.
+
+
+# Methods and Data
+The time-series cross-sectional PRIO 100 data set will be used to test these hypotheses. It documents information on 147 military disputes between 1945 and 2008 (Krcmaric, 2017, pp. 24-26). Each observation is either a conventional, guerrilla/irregular or SNC war. Wars are considered periods where at least two collective actors (i.e., the state and a rebel group) are utilizing violence to defeat the other, resulting in a minimum of 100 battle deaths. These deaths do not include civilians and must be armed perpetrators attempting to overthrow and hurt the other side (Krcmaric, 2017, pp. 24-26). The authors coded instances of conventional and guerilla warfare if they met the definition described in the paper’s previous section. An SNC war is when there is no asymmetry in military strength between the state and rebels, and both sides have limited access to advanced and heavy military weapons. SNC wars usually occur when the state is extremely weak or vulnerable to being overthrown by insurgents (Krcmaric, 2017, pp. 24-26).
+These three types of wars are the independent variables of the analysis. Each of the wars will be coded as dummy variables (i.e., 1 equals an instance of war, and 0 equals not an instance of war) (Krcmaric, 2017, pp. 24-26). This dataset was merged with Jay Ulfelder and Benjamin Valentino’s mass killing data set, which compiles information on all countries and instances of mass killings between 1945 and 2008 (Early Warning Project, 2014; (Krcmaric, 2017, pp. 24-26; Ulfelder & Valentino, 2008; Ulfelder, 2013). Ulfelder et al. examined numerous data sets to find variables that forecast instances of mass killings. The outcome variable is binary, where 1 depicts a mass killing, and 0 represents no event of mass killing (Early Warning Project, 2014; Ulfelder & Valentino, 2008; Ulfelder, 2013). According to the authors, a mass killing happens when the state murders 1000 or more civilians belonging to a political, ethnic, economic, social or geographic group within a country’s borders. An episode of mass killing starts when 100 civilians die. When less than 100 civilians die for three sequential years, the episode is over. The year coded as the end date for the event will be the first year with fewer than 100 deaths (Early Warning Project, 2014; Ulfelder & Valentino, 2008; Ulfelder, 2013). Krcmaric examines the literature and controls for the following variables:
+1)	how intense the conflict was (i.e., 1 represents between 25 and 999 battle deaths within a given year, and 2 illustrates a minimum of 1000 battle deaths within a given year) (Krcmaric, 2017, pp. 24-26)
+
+2)	whether the conflict was fought to control and/or gain territory (i.e., 1 indicates territorial motive and 0 no territorial motive)
+
+3)	whether the country is a democracy (i.e., 1 is a democracy and 0 is not a democracy) (Krcmaric, 2017, pp. 24-26)
+
+4)	the level of ethnic polarization
+
+5)	whether the elites controlling the country espoused exclusionary ideologies (i.e., 1 equals an exclusionary ideology espoused, and 0 represents no exclusionary ideology espoused) (Krcmaric, 2017, pp. 24-26)
+
+6)	the country’s level of trade openness (Krcmaric, 2017, pp. 24-26)
+
+7)	the country’s GDP per capita (i.e., its overall economic development) (Krcmaric, 2017, pp. 24-26)
+
+8)	the country’s population (Krcmaric, 2017, pp. 24-26)
+
+I will test these hypotheses using a logistic regression where the standard errors are clustered by country to address heteroskedasticity and autocorrelation. There are three regression models. The first includes the guerilla warfare variable and the covariates. The second will add the SNC variable. The third will remove the SNC variable and add in the conventional warfare variable (Krcmaric, 2017, pp. 24-26).
+
+# Results 
+```{r echo = FALSE, message=FALSE, warning=FALSE} 
+#~~~~~~~~~~REPLICATION MODELS~~~~~~~~~#
+########
+#TABLES#
+########
+#MODEL ONE
+#Running regression
+m1<-glm(start_specific~irregular+gwf_dem + ETHPOL +tradeopeni + exclusion+ rgdpch_PWT +intensity+territorial + pop_PWT, family="binomial",data=mk)
+#Using clustered standard errors
+m1l<-coeftest(m1, vcov=vcovCL(m1, cluster=~ccode))
+m1t<-tidy(coeftest(m1, vcov=vcovCL(m1, cluster=~ccode)), conf.int=0.95)
+#Creating odds ratio and confidence intervals
+m1o<-m1t%>%mutate(OR=exp(estimate))%>%mutate(Lower = exp(conf.low))%>%mutate(Upper= exp(conf.high))
+#Removing values that are not important to examine visually
+m1o<-m1o%>%slice(2, 3, 4, 6, 7, 8)
+#Recoding values
+m1o$term<-dplyr::recode(m1o$term, 'irregular'= "Guerrilla Warfare", "gwf_dem" = "Democracy", "ETHPOL" = "Ethnic Polarization", "exclusion" = "Exclusionary Ideology", "rgdpch_PWT" = "Development",   "intensity"="Conflict Intensity")
+#rouding values
+m1o[,-1] <-round(m1o[,-1],3)
+#MODEL TWO
+#Doing the exact same thing for model one but for model two
+m2<-glm(start_specific~irregular+SNC+gwf_dem + ETHPOL +tradeopeni + exclusion+ rgdpch_PWT +intensity+territorial + pop_PWT, family="binomial", data=mk)
+m2l<-coeftest(m2, vcov=vcovCL(m2, cluster=~ccode))
+m2t<-tidy(coeftest(m2, vcov=vcovCL(m2, cluster=~ccode)), conf.int=0.95)
+m2o<-m2t%>%mutate(OR=exp(estimate))%>%mutate(Lower = exp(conf.low))%>%mutate(Upper= exp(conf.high))
+m2o<-m2o%>%slice(2, 3, 4, 5, 7, 8, 9)
+m2o$term<-dplyr::recode(m2o$term, 'irregular'= "Guerrilla Warfare","SNC" = "SNC Warfare", "gwf_dem" = "Democracy", "ETHPOL" = "Ethnic Polarization", "exclusion" = "Exclusionary Ideology", "rgdpch_PWT" = "Development",   "intensity"="Conflict Intensity")
+m2o[,-1] <-round(m2o[,-1],3)
+#MODEL THREE
+#Doing the same thing as model one and two but for model three
+m3<-glm(start_specific~irregular+conventional+gwf_dem + ETHPOL +tradeopeni + exclusion+ rgdpch_PWT +intensity+territorial + pop_PWT, family="binomial", data=mk)
+m3l<-coeftest(m3, vcov=vcovCL(m3, cluster=~ccode))
+m3t<-tidy(coeftest(m3, vcov=vcovCL(m3, cluster=~ccode)), conf.int=0.95)
+m3o<-m3t%>%mutate(OR=exp(estimate))%>%mutate(Lower = exp(conf.low))%>%mutate(Upper= exp(conf.high))
+m3o<-m3o%>%slice(2, 3, 4, 5, 7, 8, 9)
+m3o$term<-dplyr::recode(m3o$term, 'irregular'= "Guerrilla Warfare","conventional" = "Conventional Warfare", "gwf_dem" = "Democracy", "ETHPOL" = "Ethnic Polarization", "exclusion" = "Exclusionary Ideology", "rgdpch_PWT" = "Development",   "intensity"="Conflict Intensity")
+m3o[,-1] <-round(m3o[,-1],3)
+#TABLE FOR M1, M2, M3
+#Changing names for table
+cm <- c('(Intercept)'= "Intercept", 'irregular'= "Guerrilla Warfare", "SNC" = "SNC Warfare", "conventional" = "Conventional Warfare", "gwf_dem" = "Democracy", "ETHPOL" = "Ethnic Polarization", "tradeopeni" = "Trade Openness", "exclusion" = "Exclusionary Ideology", "g" = "Income", "intensity"="Conflict Intensity", "territorial" = "Territorial Motive",'p'= "Population")   
+models<-list(m1l, m2l, m3l)
+#Creating table for logistic regression for all three models
+msummary(models, stars = TRUE,coef_map=cm,statistic_vertical=FALSE)
+```
+
+The table above shows the regression results for all three models. This table’s critical information is that all three war variables are statistically significant, with p-values less than 0.05. The guerrilla warfare variable’s coefficient is negative, meaning that when there is a guerilla war, the log of odds decreases. Conventional warfare’s coefficient is larger than guerrilla warfare’s coefficient, therefore, I can reject the null hypothesis. However, the results also suggest that conventional warfare’s coefficient is negative at -0.876. This means that the test does not entirely support Krcmaric ’s theory because conventional warfare appears to decrease the likelihood of mass killings. The most intriguing information from this model is that the SNC warfare variable is statistically significant, and its coefficient is large. The results suggest that out of the three types of war variables, SNC warfare has a positive association with mass killing.
+
+# Odds Ratios for Model 1, 2, and 3
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+##################################
+#ODDS RATIOS GRAPHS - REPLICATION#
+#################################
+#MODEL ONE - ODDS RATIO PLOT
+#Putting odds ratio as X-variable and variable names as y-variable
+or1<-ggplot(m1o, aes(x = OR, y = term)) +
+#Creating an intercept line at 1 and altering the size and style
+geom_vline(aes(xintercept = 1), size = .25, linetype = 'dashed', colour="snow") + 
+#Creating an error bar to signify the confidence intervals
+#Changing the size and colour of bars
+  geom_errorbarh(aes(xmax = Upper, xmin = Lower), size = .5, height = 
+                   .2, color = 'deepskyblue') +
+  geom_point(size = 2, colour="deepskyblue", alpha=0.6)  +
+  labs(x=" ", y=" ",
+       title=" ")+
+#Changing theme, size, and colour of the text in the plot
+#Also removing gridlines
+  theme_solarized_2(light=FALSE)+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "deepskyblue", 
+                      size = 1, linetype = "solid"),
+        axis.text.x = element_text(color="snow"),
+        axis.text.y= element_text(colour="snow"))
+
+#MODEL TWO
+#Doing that same thing as previously but for model 2
+or2<-ggplot(m2o, aes(x = OR, y = term)) + geom_vline(aes(xintercept = 1), size = .25, linetype = 'dashed', colour="snow") + 
+  geom_errorbarh(aes(xmax = Upper, xmin = Lower), size = .5, height = 
+                   .2, color = 'deepskyblue') +
+  geom_point(size = 2, colour="deepskyblue", alpha=0.6)  +
+  labs(x=" ", y=" ",
+       title=" ")+
+  theme_solarized_2(light=FALSE)+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "deepskyblue", 
+                      size = 1, linetype = "solid"),
+        axis.text.x = element_text(color="snow"),
+        axis.text.y= element_text(colour="snow"))
+#MODEL THREE
+#Doing the same thing previously but for model 3
+or3<-ggplot(m3o, aes(x = OR, y = term)) + geom_vline(aes(xintercept = 1), size = .25, linetype = 'dashed', colour="snow") + 
+  geom_errorbarh(aes(xmax = Upper, xmin = Lower), size = .5, height = 
+                   .2, color = 'deepskyblue') +
+  geom_point(size = 1.5, colour="deepskyblue", alpha=0.6)  +
+  labs(x=" ", y=" ",
+       title="")+
+  theme_solarized_2(light=FALSE)+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "deepskyblue", 
+                      size = 1, linetype = "solid"),
+        axis.text.x = element_text(color="snow"),
+        axis.text.y= element_text(colour="snow"))
+#Calulating percent change of odds
+gwpro1<-(1 - exp(m1t$estimate[2]))*100
+gwpro2<-(1 - exp(m2t$estimate[2]))*100
+gwpro3<-(1 - exp(m3t$estimate[2]))*100
+sncpro2<-(1 - exp(m2t$estimate[3]))*100
+conpro3<-(1 - exp(m3t$estimate[3]))*100
+#Putting plots together
+grid.arrange(or1, or2, or3, ncol=2)
+```
+
+The graph presented above visualizes the independent variables’ strength of association with mass killing by showing their odds ratios  . For all the models, when controlling the covariates at a fixed value, the odds of a mass killing occurring when there is guerrilla warfare over the odds of a mass killing when there is no guerilla warfare is 0.305, 0.370, and 0.154. In other words, the odds of a mass killing happening decreases when there is guerilla war by 70%, 63%, and 83% versus when there is not. The second plot shows that when there is SNC warfare, it is 2.4 times more likely that a state will carry out mass violence than when there is another form of conflict. Thus, SNC warfare increases the odds of mass killing by 140%. Finally, the third plot shows that conventional warfare has an odds ratio of 0.417, which means that it decreases the odds of mass killing by 58%.
+
+# Predictied Probabilities for Model 1, 2, and 3
+```{r  echo = FALSE, message=FALSE, warning=FALSE}
+#############################
+#Predicted Probability Plots#
+#############################
+#Model 1- Predicted Probability
+m1<-glm(start_specific~factor(irregular)+factor(gwf_dem)+ETHPOL+tradeopeni+exclusion+rgdpch_PWT+intensity+territorial+pop_PWT, family="binomial", data=mk)
+#Using the ggpredict function to calculate probability with clustered standard errrors
+#Also making a plot and altering the theme
+pp1<-ggpredict(m1,  terms=c('irregular', 'intensity [2]', 'exclusion [1]'), ci.lvl = 0.95,
+             typical="median",
+             vcov.fun="vcovCL",
+             vcov.type='HC1',
+             vcov.args=list(cluster=mk$ccode))
+pp1<-ggplot(pp1, aes(x = x, y = predicted))+
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high), color="deepskyblue") +
+  geom_point(size = 3, color="deepskyblue", alpha=0.6)+
+labs(y="Predicted Probabilities", x="Geurrilla War")+
+  theme_solarized_2(light=FALSE)+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "deepskyblue", 
+                      size = 1, linetype = "solid"),
+        axis.text.x = element_text(color="snow"),
+        axis.text.y= element_text(colour="snow"),
+        title= element_text(colour="snow", size=10))
+  
+  
+#Model 2 - Predicted Probability
+#Doing the same thing previously but for model 2
+m2<-glm(start_specific~irregular+factor(SNC)+factor(gwf_dem)+ETHPOL+tradeopeni+exclusion+rgdpch_PWT+intensity+territorial+pop_PWT, family="binomial", data=mk)
+
+pp2<-ggpredict(m2,  terms=c('SNC' , 'exclusion [1]', 'intensity [2]', 'irregular[0]'), ci.level=0.95, typical='median',
+          vcov.fun="vcovCL",
+          vcov.type='HC1',
+          vcov.args=list(cluster=mk$ccode))
+pp2<-ggplot(pp2, aes(x = x, y = predicted))+
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high), color="deepskyblue") +
+  geom_point(size = 3, color="deepskyblue")+
+  labs(x="SNC War", y=" ")+
+   theme_solarized_2(light=FALSE)+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "deepskyblue", 
+                      size = 1, linetype = "solid"),
+        axis.text.x = element_text(color="snow"),
+        axis.text.y= element_text(colour="snow"),
+        title= element_text(colour="snow", size=10))
+
+#Model 3 - Predicted Probability
+#Doing the same thing previously but for model 3
+m3<-glm(start_specific~irregular+factor(conventional)+gwf_dem+ETHPOL+tradeopeni+exclusion+rgdpch_PWT+intensity+territorial+pop_PWT, family="binomial", data=mk)
+
+pp3<-ggpredict(m3,  terms=c('conventional' ,'exclusion [0]', 'intensity [2]', 'irregular [0]'), ci.level=0.95, typical='median',
+          vcov.fun="vcovCL",
+          vcov.type='HC1',
+          vcov.args=list(cluster=mk$ccode))
+pp3<-ggplot(pp3, aes(x = x, y = predicted))+
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high), colour="deepskyblue") +
+  geom_point(size = 3, colour="deepskyblue")+
+  labs(x="Conventional War", y=" ")+
+     theme_solarized_2(light=FALSE)+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "deepskyblue", 
+                      size = 1, linetype = "solid"),
+        axis.text.x = element_text(color="snow"),
+        axis.text.y= element_text(colour="snow"),
+        title= element_text(colour="snow", size=10))
+
+#Arraning plots to present them together
+grid.arrange(pp1, pp2, pp3, ncol=3)
+pp1<-ggplotly(pp1)
+pp2<-ggplotly(pp2)
+pp3<-ggplotly(pp3)
+```
+
+The plots above estimate the predicted probabilities for each model. The exclusion variable is set to 1, the conflict intensity variable set to 2, and the rest of the covariates are set to their median value. It should be noted that for models two and three, guerrilla warfare is set to 0. The first plot indicates that when there is no instance of guerrilla warfare the probability that a mass killing will occur is 25%. When there is guerilla war, the probability decreases to only 9%. The second plot shows that the probability of mass killing increases by 19% when there is an SNC war versus when there is not one. Finally, the third plot highlights that when there is no conventional war, the probability of a mass killing is 23%. When there is a conventional war, the predicted probability is 11%. The crucial insight provided by this analysis is that state vulnerability may have a stronger association with mass killing than the type of war. When a state participates in an SNC war, it implies that the government is economically and militarily underdeveloped, politically unstable, and vulnerable to being overthrown by insurgents (Krcmaric, 2017, p. 24). Thus, it may be worthwhile to explore the potential association between state vulnerability and mass killing.
+
+	Anderton & Carter (2014) conducted a study showing the essential characteristics of what makes a state weak and how it increases the probability of mass killing (pp. 9-19). The authors argue that mass killing is an act of desperation when the state is weak. These authors define a vulnerable state as one that is anocratic, is a new government (i.e., less than five years old), has low GDP per capita, and faces threatening rebels (Anderton & Carter, 2014, pp. 31-32). The weak structure of the state allows rebels to overthrow the government. State officials will eliminate insurgents and their accomplices to remain in power (Anderton & Carter, 2014, pp. 9-19). The remainder of this paper will attempt to mimic Anderton and Carter’s model with the available data   and see if state vulnerability is a better predictor for mass killings than the type of war. The variables used for this analysis will either be the same or similar to the ones used in Anderton and Carter’s model (Anderton & Carter, 2014, pp. 9-19). These authors present four hypotheses:
+
+$H_1:$ The more threatening the rebels are, the more likely a state will carry out a mass killing (Anderton & Carter, 2014, p. 12)
+
+$H_2:$ A new state is more likely to carry out a mass killing than an older state (Anderton & Carter, 2014, p. 12)
+
+$H_3:$ An anocratic state is more likely to carry out a mass killing than a democratic or autocratic state (Anderton & Carter, 2014, p. 12)
+
+$H_4:$ As GDP per capita decreases, the more likely a state will carry out mass killings (Anderton & Carter, 2014, p. 12)
+
+	The first variable used in this analysis is threat. This concept is measured using the Political Instability Task Force’s magnitude variable. It shows how widespread the destruction caused by the war was throughout the country (Anderton & Carter, 2014, pp. 15-16). This variable uses a five-point scale:
+	0) Less than one-tenth of the country was impacted by the conflict
+	1) One-tenth of the country was affected by the conflict
+	2) Between one-tenth and one-quarter of the country was affected by the conflict
+	3) One-quarter to one-half of the country was affected by the conflict
+	4) More than one-half of the country was affected by the conflict (Anderton & Carter, 2014, pp. 15-16)
+	
+	The second variable is new state status. It is a dummy variable, where 1 represents a state that is five years or younger, and 0 illustrates a government older than five years.
+	
+	The third variable is anocracy, which is measured using the polity score  . It is a 21-point scale where -10 to -6 is considered an authoritarian regime, -5 to 5 is considered an anocracy, and 6 to 10 is considered a democracy. This variable will be recoded as binary, where 1 indicates a state is anocratic and 0 suggests a state is not anocratic (Anderton & Carter, 2014, p. 16).
+	
+	The fourth variable is GDP per capita, which comes from the initial analysis. The information comes from the Penn World Tables dataset (Krcmaric, 2017, p. 26). The covariates included in this model are: 1) whether the conflict occurred during the cold war (i.e., 1 indicates that a conflict happened between 1947 and 1991, and 0 suggests that a conflict happened outside of this period) 2) the Political Instability Task Force’s discrimination measure (i.e., the percent of the population that was subjected to discrimination) (Early Warning Project, 2014; Ulfelder & Valentino, 2008; Ulfelder, 2013) 3.) the log of the population from the Penn World Table Dataset (Krcmaric, 2017, p. 26).
+
+# Results
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+#Running a regression for the anderton model
+#Using clustered standard errors
+#Also calculating the odds ratios and making a regression table
+#I am doing the same thing as the previous odds ratio plots but for the Anderton model
+am1<-glm(start_specific~threat+ano+ns+pop_PWT+rgdpch_PWT+cold+dis.l4pop, family="binomial", data=mk)
+am1t<-tidy(coeftest(am1, vcov=vcovCL(am1, cluster=~ccode)), conf.int=0.95)
+am1o<-am1t%>%mutate(OR=exp(estimate))%>%mutate(Lower = exp(conf.low))%>%mutate(Upper= exp(conf.high))
+am1o<-am1o%>%slice(2, 3, 4, 5, 6, 7, 8)
+am1o$term<-dplyr::recode(am1o$term, 'threat'="Threat", "ano"="Anocracy", "ns"="New State Status", "pop_PWT"="Population", "cold"="Cold War Period","dis.l4pop"="Discrimination", "rgdpch_PWT"="Development")
+am1o[,-1] <-round(am1o[,-1],3)
+#TABLE
+m1<-list()
+m1[["Anderton and Carter Model"]]<-coeftest(am1, vcov=vcovCL(am1, cluster=~ccode))
+cm <- c("(Intercept)"="Intercept",'threat'="Threat", "ano"="Anocracy", "ns"="New State Status", "pop_PWT"="Population", "cold"="Cold War Period","dis.l4pop"="Discrimination", "rgdpch_PWT"="Development")
+msummary(m1, stars = TRUE,coef_map=cm,statistic_vertical=FALSE)
+```
+The table above shows that hypotheses one, three, and four are not substantiated. The threat, anocracy, and GDP per capita variable are all not statistically significant. The two variables that appear to have a relationship with mass killing are the cold war period and the new state status variable (i.e., the p-values for both variables are less than 0.01). The results mean that a state existing within the cold war period and a state five-years old or younger increases the log of odds. Thus, I can reject the third null hypothesis (i.e., new state status does not increase the likelihood of mass killing).
+
+# Odds Ratio for Anderton and Carter's Model
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+#ODDS RATIO 
+p<-ggplot(am1o, aes(x = OR, y = term)) + geom_vline(aes(xintercept = 1), size = .25, linetype = 'dashed', colour="snow") +
+  geom_errorbarh(aes(xmax = Upper, xmin = Lower), size = .5, height =.2, color = 'deepskyblue') +
+  geom_point(size = 1.5, colour="deepskyblue", alpha=0.6)  +
+  labs(x=" ", y=" ",
+       title="")+
+  theme_solarized_2(light=FALSE)+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "deepskyblue", 
+                      size = 1, linetype = "solid"),
+        axis.text.x = element_text(color="snow"),
+        axis.text.y= element_text(colour="snow"))
+
+#Calulating percent change of odds
+nss<-(1 - exp(am1$coef[4]))*100
+cwp<-(1 - exp(am1$coef[7]))*100
+ggplotly(p)
+```
+
+The plot presented above shows the odds ratios for Anderton and Carter’s model. The odds ratios for the new state status and cold war period variable are large. When a country is a new state, it is 5.5 times more likely that a mass killing will occur versus when it is older than five years. Additionally, a mass killing is 4.7 times more likely to happen when a state existed within the cold war period versus when it exists outside of that period. These results are substantial; however, it is difficult to be confident about the estimates. The odds ratios have considerable confidence intervals. This ultimately means that I can be confident, based on this analysis, that there appears to be some association with both independent variables and mass killings, however, the association’s strength is questionable.
+
+
+# Predictied Probabilities for Anderton and Carter's Model
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+#############################
+#Predicted Probability Plots#
+#############################
+#Model Anderton and Carter Model- Predicted Probability
+am1<-glm(start_specific~threat+ano+factor(ns)+pop_PWT+rgdpch_PWT+cold+dis.l4pop, family="binomial", data=mk)
+pp1<-ggpredict(am1,  terms=c('ns', 'ano[1]', 'cold [1]', 'threat[4]'), ci.lvl = 0.95,
+             typical="median",
+             vcov.fun="vcovCL",
+             vcov.type='HC1',
+             vcov.args=list(cluster=mk$ccode))
+pp1<-ggplot(pp1, aes(x = x, y = predicted))+
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high), color="deepskyblue") +
+  geom_point(size = 3, color="deepskyblue", alpha=0.6)+
+labs(y="Predicted Probabilities", x="New State Status")+
+  theme_solarized_2(light=FALSE)+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "deepskyblue", 
+                      size = 1, linetype = "solid"),
+        axis.text.x = element_text(color="snow"),
+        axis.text.y= element_text(colour="snow"),
+        title= element_text(colour="snow"))
+
+#COLD WAR
+am2<-glm(start_specific~threat+ano+ns+pop_PWT+rgdpch_PWT+factor(cold)+dis.l4pop, family="binomial", data=mk)
+pp2<-ggpredict(am2,  terms=c('cold', 'ns[1]','ano[1]','threat[4]'), ci.lvl = 0.95,
+             typical="median",
+             vcov.fun="vcovCL",
+             vcov.type='HC1',
+             vcov.args=list(cluster=mk$ccode))
+pp2<-ggplot(pp2, aes(x = x, y = predicted))+
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high), color="deepskyblue") +
+  geom_point(size = 3, color="deepskyblue", alpha=0.6)+
+  labs(y=" ", x="Cold War Period")+
+  theme_solarized_2(light=FALSE)+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "deepskyblue", 
+                      size = 1, linetype = "solid"),
+        axis.text.x = element_text(color="snow"),
+        axis.text.y= element_text(colour="snow"),
+        title= element_text(colour="snow"))
+
+grid.arrange(pp1, pp2, ncol=2)
+pp2<-ggplotly(pp2)
+pp1<-ggplotly(pp1)
+```
+
+The plots above provide the predicted probabilities for Anderton and Carter’s model. For the first plot, the anocratic variable is set to 1, the cold war period variable set to 1, the threat variable is set to 4, and the control variables are set to their median value. The results suggest that the probability of a mass killing increases by 32% when a state is new versus when it is old. For the second plot, the anocratic variable is set to 1, the new state status variable is set to 1, and the threat variable is set to 4. The results indicate that when a state did not exist within the cold war period, the probability of a state carrying out a mass killing is 14%. When a state does exist within the cold war period, the probability of a mass killing is 43%.
+
+# Discussion and Limitations
+This paper’s critical point is that there appears to be a relationship between political instability and mass killings; still, it is difficult to say how well this relationship is truly understood. The first analysis highlights that it is not guerrilla warfare, but SNC warfare, that increases the likelihood of state-led mass killing. This is a fascinating finding because it, potentially, implies that it may be a state’s vulnerability rather than the type of war that increases the probability of mass killings. When I tested a model that promotes the idea that state vulnerability is crucial in predicting mass killing instances, the results were not substantial. Although a new government status is a characteristic of a weak state, various variables suggested that vulnerability was not a central factor in motivating states to carry out mass violence. These insights highlight a theoretical weakness of Kcrameric’s analysis and my study. 
+Balch-Lindsay, Huth & Valentino (2004) assert that guerilla warfare increases the likelihood of mass killing, however, the mediating factor that substantially increases the likelihood of mass killing is high civilian support (i.e., 100,000 supporters or more) (pp. 390-392, p. 395)  . In other words, what may matter when predicting mass killings is not the specific type of war, but the degree to which rebels rely on the population and how threatening the locals are to the government. There is no variable in Kcrameric’s data set that measures how widespread support was for rebel groups. I suggest building on Balch-Lindsay, Huth, & Valentino’s (2004) data set by documenting more instances about the degree to which civilians supported rebels. This would ensure more validity in testing Balch-Lindsay, Huth, & Valentino’s theory and would further academic understanding of the causes of state-led mass killing.
+	A final weakness of this study is that the data set contained 648 observations, with only 41 instances of mass killings. Including more observations in the analysis would improve the estimates’ preciseness and my confidence in the estimates. This could be done using Jay Ulfelder’s and Benjamin Valentino’s updated dataset which documents information on all countries between 1945 and 2014 and has 9329 observations and 115 occurrences of mass killing (Early Warning Project, 2014; Ulfelder, 2013).
+	
+# Conclusion
+In this paper, I examine the relationship between civil war and state-led mass killings. I do this by first analyzing Kcramric’s research, which challenges Balch-Lindsay, Huth & Valentino’s (2004) foundational paper (Kcramric, 2017). Kcrameric argues that if states are rational actors, it is doubtful that a state will carry out mass killings during guerrilla war because it is more effective to win over the public’s hearts and minds rather than murder them (Kcramric, 2017). Kcrameric suggests that conventional warfare is the most likely type of war to increase the probability of mass killings. I test Kcrameric’s theory by running a logistic regression on the PIRO 100 data (Kcramric, 2017). The results showed that SNC warfare was the only type of conflict to increase the likelihood of mass killings. These findings entail that state vulnerability is a better predictor of mass killings than the type of conflict. I test this theory by running another regression but instead use Anderton & Carter’s (2014) model. This model documents the essential characteristics that make a state weak and how it increases the likelihood of mass killings (Anderton & Carter, 2014). My findings show that there is only one aspect of a vulnerable government that increases the likelihood of mass killing, that being new state status; however, my estimates confidence intervals are extremely high. Put differently, the association between variables is likely, but I cannot be confident about the strength of the association.  
+The final part of the paper provides a brief discussion about my overall results and the weaknesses of the study. I concluded that both mine and Kcramric’s s analysis failed to consider how high civilian support impacts the likelihood of mass killing. Adding this variable into future studies would accurately test Balch-Lindsay, Huth & Valentino’s (2004) theory and further academic understanding of mass killings. Additionally, the dataset contained a small number of observations (specifically, cases of mass killings). To improve the confidence and preciseness of the estimates, I suggest increasing the number of observations by using Jay Ulfelder and Benjamin Valentino’s updated mass killing dataset (Early Warning Project, 2014; Ulfelder & Valentino, 2008; Ulfelder, 2013).
+
+
+
+[^1]: It should be noted that the summary statistics for all the variables used in the analysis will be presented in the appendix. Additionally, the tests conducted to check the models’ assumptions are presented in the R script file’s first chunk of code.
+
+[^2]: An odds ratio measures the level of association between the dependent and independent variables. Odds ratios indicate the odds that a result will occur given a specific exposure versus the odds that a result will occur without the exposure. Essentially, it compares the odds between an event happening versus an event not happening. An odds ratio score of 1 means that the treatment has no real effect on the variable. An odds ratio score greater than 1 suggests that the treatment does increase the odds of that outcome. An odds ratio less than 1 insinuates that the treatment decreases the odds of a specific outcome.
+
+[^3]: I merged an updated version of Jay Ulfelder and Benjamin Valentino’s mass killing dataset with Krcmaric’s dataset to make sure I had the correct variables to test Anderton and Carter’s model. This allowed me to measure threat, anocracy, new state status, and state discrimination (Early Warning Project, 2014; Ulfelder & Valentino, 2008; Ulfelder, 2013).
+
+[^4]: I decided to use a binary variable instead copy what Anderton and Carter did in their model. They recoded the polity score variable to a 0-20 scale (Anderton & Carter, 2014, p.16). When running the regression, they make the variable a polynomial. I stuck with the binary variable because it did not substantially change the results, and the standard error was smaller than the polynomial variable. Essentially, I was able to be more confident about the preciseness of my estimates.
+
+[^5]: I did not use the high civilian support variable in my analysis because of time constraints. 
+
+# References
+Anderton, C. H., & Carter, J. R. (2014). A New Look at Weak State Conditions and Genocide Risk. Peace Economics. Peace Science and Public Policy, 21(1), 1–36. 
+
+Balch-Lindsay, D., Huth, P., & Valentino B. (2004). “Draining the Sea”: Mass Killing and Guerilla Warfare. International Organization, 58(2), 375-407.
+
+Finkel, E. & Straus, S. (2012). Macro, Meso, and Micro Research on Genocide: Gains, Shortcomings, and Future Areas of Inquiry. Genocide Studies and Prevention, 7(1), pp. 56-67.
+
+Kalyvas, S. N. (2006). The Logic of Violence in Civil War. Cambridge, UK; New York, NY: Cambridge University Press.
+
+Krain, M. (1997). State-Sponsored Mass Murder: The Onset and Severity of Genocides and Politicides. Journal of Conflict Resolution, 41(3), 331–360. doi: 10.1177/0022002797041003001
+
+Krcmaric, D. (2017). Varieties of civil War and Mass Killing: Reassessing the Relationship Between Guerrilla Warfare and Civilian Victimization. Journal of Peace Research, 55(1), 18-31. 
+
+Schwartz, R. A., & Straus, S. (2018).   Evidence from Guatemala’s conflict archives. Journal of Peace Research, 55(2), pp. 222–235. doi:10.1177/0022343317749272
+
+Straus, S. (2013). Political Science and Genocide. In Bloxham, D., & Moses, A. (1st ed.), The Oxford Handbook of Genocide Studies (pp. 163-181) Oxford, UK: Oxford University Press.
+
+Ulfelder, J., & Valentino, B. (2008). Assessing Risks of State-Sponsored Mass Killing. Social Science Research Network, pp. 1-47. doi: 10.2139/ssrn.1703426
+
+Ulfelder, J. (2013). A Multimodel Ensemble to Forecast Onsets of State. Social Science Research Network, pp. 1-23.
+
+Valentino, B. (2014). Why We Kill: The Political Science of Political Violence Against Civilians. Annual Review of Political Science, 17(1), pp. 89-103.
+
+# Appendix
+## Summary Statistic 
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+#Creating summary statistics for data used in analysis
+mk1<-mk
+mk1<-mk1%>%dplyr::select(start_specific, irregular, SNC, conventional, territorial, intensity,
+                         gwf_dem, ETHPOL, exclusion, tradeopeni, rgdpch_PWT, pop_PWT, ano,
+                         threat, ns, cold)
+
+                         
+
+                  
+#Using the descr function to calculate summary statistics 
+mk1<-descr(mk1,stats=c("mean", "sd", "q1", "med", "q3", "iqr","min", "max", "n.valid", "pct.valid"), transpose = TRUE, headings = FALSE)
+setDT(mk1, keep.rownames = TRUE)
+mk1<-as.data.frame(mk1)
+mk1[,-1] <-round(mk1[,-1],2)
+mk1$rn<-dplyr::recode(mk1$rn,"start_specific" = "Mass Killing", "conventional"="Conventional War",'irregular'= "Guerrilla Warfare", "SNC" = "SNC Warfare", "gwf_dem" = "Democracy", "ETHPOL" = "Ethnic Polarization", "tradeopeni" = "Trade Openness", "exclusion" = "Exclusionary Ideology", "rgdpch_PWT" = "Development",   "intensity"="Conflict intensity", "territorial" = "Territorial Motive",'pop_PWT'= "Population" , "ano"="Anocracy", "threat" ="Threat", "ns"="New State Status", "cold"="Cold War Period")
+mk1<-mk1%>%dplyr::rename(Variables=rn)
+#Creating table to produce it in word
+mk1%>% 
+  flextable() %>% 
+  align(part = "all") %>%
+  font(fontname = "Times New Roman (Body)", part = "all") %>% 
+  fontsize(size = 8, part="all") %>% 
+  theme_booktabs()%>%
+  autofit()
+
+
+```
